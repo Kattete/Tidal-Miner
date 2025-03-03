@@ -6,6 +6,9 @@ using UnityEngine.InputSystem;
 
 public class MapDevice : MonoBehaviour
 {
+    [Header("Parent References")]
+    [SerializeField] private Transform itemHolder;
+
     [Header("Scanner Settings")]
     [SerializeField] private float scanRadius = 5f;
     [SerializeField] private float scanFrequency = 0.5f; // How often to scan (in seconds)
@@ -52,6 +55,11 @@ public class MapDevice : MonoBehaviour
 
     private void Awake()
     {
+        if(itemHolder == null)
+        {
+            itemHolder = transform.parent;
+        }
+
         // Find the main camera if not directly assigned
         if (playerCamera == null)
         {
@@ -69,6 +77,67 @@ public class MapDevice : MonoBehaviour
         {
             audioSource = gameObject.AddComponent<AudioSource>();
         }
+
+        StartCoroutine(InitializeComponents());
+    }
+
+    private IEnumerator InitializeComponents()
+    {
+        yield return null;
+        // Find the Canvas if it's not assigned
+        if (mapDeviceUI == null)
+        {
+            // First try to find it as a direct child
+            mapDeviceUI = transform.Find("Canvas")?.gameObject;
+
+            // If still not found, search all children
+            if (mapDeviceUI == null)
+            {
+                Canvas canvasComponent = GetComponentInChildren<Canvas>(true);
+                if (canvasComponent != null)
+                {
+                    mapDeviceUI = canvasComponent.gameObject;
+                }
+            }
+
+            Debug.Log(gameObject.name + ": MapDeviceUI " + (mapDeviceUI != null ? "found" : "not found"));
+        }
+        // Find the radar display if not assigned
+        if (radarDisplay == null && mapDeviceUI != null)
+        {
+            // Try to find "RadarDisplay" under the Canvas
+            Transform radarTransform = mapDeviceUI.transform.Find("RadarDisplay");
+            if (radarTransform != null)
+            {
+                radarDisplay = radarTransform.GetComponent<RectTransform>();
+            }
+
+            Debug.Log(gameObject.name + ": RadarDisplay " + (radarDisplay != null ? "found" : "not found"));
+        }
+        // Find the sweeper if not assigned
+        if (radarSweeperImage == null && radarDisplay != null)
+        {
+            // Based on your hierarchy, look for SweepPivot/Sweeper
+            Transform sweepPivot = radarDisplay.Find("SweepPivot");
+            if (sweepPivot != null)
+            {
+                Transform sweeper = sweepPivot.Find("Sweeper");
+                if (sweeper != null)
+                {
+                    radarSweeperImage = sweeper.GetComponent<RectTransform>();
+                }
+            }
+
+            Debug.Log(gameObject.name + ": RadarSweeper " + (radarSweeperImage != null ? "found" : "not found"));
+        }
+        // Initialize UI visibility
+        if (mapDeviceUI != null)
+        {
+            mapDeviceUI.SetActive(false);
+        }
+
+        // Log initialization status
+        Debug.Log($"MapDevice initialization complete. UI: {mapDeviceUI != null}, Radar: {radarDisplay != null}, Sweeper: {radarSweeperImage != null}");
     }
 
     private void OnEnable()
