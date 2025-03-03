@@ -22,6 +22,7 @@ public class MapDevice : MonoBehaviour
     [Header("Audio")]
     [SerializeField] private AudioClip scanSound;
     [SerializeField] private AudioClip objectFoundSound;
+    [SerializeField] private AudioClip activationSound;
     [SerializeField] private AudioSource audioSource;
 
     [Header("Input")]
@@ -39,6 +40,13 @@ public class MapDevice : MonoBehaviour
     private float sweepRoation = 0f;
     private float currentAngle = 0f;
     [SerializeField] private float sweepSpeed = 120f;
+    [SerializeField] private float sweepDetectionAngle = 20f;
+    [SerializeField] private float sweepAngleOffset = 180f;
+    [SerializeField] private float dotFadeTime = 5f;
+    [SerializeField] private float dotFadeDuration = 2f;
+    private Dictionary<ScannableObjectScript, float> objectAngles = new Dictionary<ScannableObjectScript, float>(); // track radar angles
+    private Dictionary<ScannableObjectScript, float> dotVisibilityTimer = new Dictionary<ScannableObjectScript, float>();
+    private Dictionary<ScannableObjectScript, bool> hasBeenSwept = new Dictionary<ScannableObjectScript, bool>();
 
     // Cache
     private List<ScannableObjectScript> objectsToRemove = new List<ScannableObjectScript>();
@@ -98,9 +106,9 @@ public class MapDevice : MonoBehaviour
         }
 
         // Play activation sound
-        if (audioSource != null && scanSound != null && isScanning)
+        if (audioSource != null && activationSound != null && isScanning)
         {
-            audioSource.PlayOneShot(scanSound);
+            audioSource.PlayOneShot(activationSound);
         }
 
         // Clear radar when deactivated
@@ -118,7 +126,11 @@ public class MapDevice : MonoBehaviour
         // Increment scan timer
         scanTimer += Time.deltaTime;
 
-        Sweeper();
+        sweepRoation = (sweepRoation + sweepSpeed * Time.deltaTime) % 360;
+        if(radarSweeperImage != null)
+        {
+            radarSweeperImage.localRotation = Quaternion.Euler(0, 0, -sweepRoation);
+        }
 
         // Perform scan at regular intervals
         if (scanTimer >= scanFrequency)
@@ -132,6 +144,9 @@ public class MapDevice : MonoBehaviour
 
         // Check which objects are in view to show holograms
         UpdateHolograms();
+
+        // Update dot visibility based on current sweep position;
+        UpdateDotVisibility(sweepRoation);
     }
 
     private void PerformScan()
@@ -163,13 +178,13 @@ public class MapDevice : MonoBehaviour
                     detectedObjects.Add(scannableObject);
 
                     // Create radar dot for this object
-                    CreateRadarDot(scannableObject);
+                    CreateRadarDot(scannableObject, false);
 
-                    // Play object found sound
-                    if (audioSource != null && objectFoundSound != null)
-                    {
-                        audioSource.PlayOneShot(objectFoundSound);
-                    }
+                    // Initialize its sweep state
+                    hasBeenSwept[scannableObject] = false;
+
+                    // Initialize the object
+                    scannableObject.OnDetected();
                 }
                 else
                 {
@@ -186,27 +201,24 @@ public class MapDevice : MonoBehaviour
         }
     }
 
-    private void CreateRadarDot(ScannableObjectScript scannableObject)
+    private void CreateRadarDot(ScannableObjectScript scannableObject, bool initiallyVisible)
     {
         if (radarDisplay == null || dotPrefab == null) return;
 
         // Instantiate dot prefab as child of radar display
         GameObject dot = Instantiate(dotPrefab, radarDisplay);
 
+        dot.SetActive(initiallyVisible);
+
+        Image dotImage = dot.GetComponent<Image>();
+        if(dotImage != null)
+        {
+            Color color = dotImage.color;
+            dotImage.color = new Color(color.r, color.g, color.b, initiallyVisible ? 1f : 0f);
+        }
+
         // Store reference to the dot
         radarDots[scannableObject] = dot;
-
-        // Notify the scannable object it was detected
-        scannableObject.OnDetected();
-    }
-
-    private void Sweeper()
-    {
-        if (radarSweeperImage == null) return;
-
-        currentAngle = (currentAngle + sweepSpeed * Time.deltaTime) % 360;
-        radarSweeperImage.localRotation = Quaternion.Euler(0, 0, -currentAngle);
-
     }
 
     private void UpdateRadarDisplay()
@@ -243,7 +255,10 @@ public class MapDevice : MonoBehaviour
                 float objectAngle = Vector3.SignedAngle(Vector3.forward, flatRelative, Vector3.up);
 
                 float radarAngle = objectAngle - playerAngle;
+                radarAngle = (radarAngle + 360) % 360;
+                objectAngles[obj] = radarAngle;
                 float radarAngleRad = radarAngle * Mathf.Deg2Rad;
+                
 
                 // Calculate position on radar
                 float x = Mathf.Sin(radarAngleRad) * normalizedDist * radarRadius;
@@ -257,6 +272,103 @@ public class MapDevice : MonoBehaviour
                 }
             }
         }
+    }
+
+    private void UpdateDotVisibility(float sweepAngle)
+    {
+        // Normalize sweep angle to 0-360 range
+        sweepAngle = (sweepAngle + 360) % 360;
+
+        // Update timers and fade for all objects
+        float deltaTime = Time.deltaTime;
+
+        foreach (var obj in detectedObjects)
+        {
+            if (obj == null || !objectAngles.ContainsKey(obj) || !radarDots.TryGetValue(obj, out GameObject dot))
+                continue;
+
+            // Get the radar angle for this object
+            float objAngle = objectAngles[obj];
+
+            float correctedSweepAngle = (sweepAngle + sweepAngleOffset) % 360;
+
+            // Calculate angular distance (accounting for 0/360 boundary)
+            float angleDiff = Mathf.Abs(correctedSweepAngle - objAngle);
+            if (angleDiff > 180) angleDiff = 360 - angleDiff;
+
+            // Check if sweeper beam is passing over this object
+            bool isInSweep = angleDiff <= sweepDetectionAngle;
+
+            // Get the dot's Image component
+            Image dotImage = dot.GetComponent<Image>();
+            if (dotImage == null) continue;
+
+            // Is the dot currently visible?
+            bool isVisible = dot.activeSelf;
+
+            bool isFirstSweep = isInSweep && hasBeenSwept.ContainsKey(obj) && !hasBeenSwept[obj];
+            if (isInSweep)
+            {
+                // Sweeper is over the object - refresh its visibility
+                dotVisibilityTimer[obj] = 0f; // Reset the timer
+
+                if (isFirstSweep || !isVisible)
+                {
+                    // Object wasn't visible before - "ping" it
+                    dot.SetActive(true);
+                    dotImage.color = new Color(dotImage.color.r, dotImage.color.g, dotImage.color.b, 1f); // Full opacity
+
+                    // Play ping sound
+                    if (audioSource != null && objectFoundSound != null)
+                    {
+                        audioSource.PlayOneShot(objectFoundSound, 0.3f);
+                    }
+                    hasBeenSwept[obj] = true;
+                }
+            }
+            else
+            {
+                if(hasBeenSwept.ContainsKey(obj) && hasBeenSwept[obj])
+                {
+                    // Object not under sweeper - update its fade timer
+                    if (dotVisibilityTimer.ContainsKey(obj))
+                    {
+                        dotVisibilityTimer[obj] += deltaTime;
+
+                        // Calculate fade based on timer
+                        float timeSinceDetection = dotVisibilityTimer[obj];
+
+                        if (timeSinceDetection > dotFadeTime)
+                        {
+                            // Start fading the dot
+                            float fadeProgress = (timeSinceDetection - dotFadeTime) / dotFadeDuration;
+                            fadeProgress = Mathf.Clamp01(fadeProgress);
+
+                            // Apply fade to the dot image
+                            float alpha = 1.0f - fadeProgress;
+                            dotImage.color = new Color(dotImage.color.r, dotImage.color.g, dotImage.color.b, alpha);
+
+                            // Don't completely hide the dot - keep it at very low opacity
+                            if (alpha <= 0.1f)
+                            {
+                                dotImage.color = new Color(dotImage.color.r, dotImage.color.g, dotImage.color.b, 0.1f);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Initialize timer for objects we haven't tracked yet
+                        dotVisibilityTimer[obj] = 0f;
+                    }
+                }
+                
+            }
+        }
+    }
+
+    public float GetCurrentSweepAngle()
+    {
+        return currentAngle;
     }
 
     private void UpdateHolograms()
