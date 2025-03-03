@@ -195,6 +195,35 @@ public class InventorySystem : MonoBehaviour
         }
     }
 
+    public bool AddItem(GameObject item)
+    {
+        // Find first empty slot
+        for (int i = 0; i < maxSlots; i++)
+        {
+            if (!inventorySlots[i].isOccupied)
+            {
+                // Add to slot
+                inventorySlots[i].itemInSlot = item;
+                inventorySlots[i].isOccupied = true;
+
+                // Create a UI representation in the slot
+                CreateItemUIRepresentation(item, inventorySlots[i].slotTransform);
+
+                // If this is the first item added and nothing is equipped, equip it
+                if (currentEquippedItem == null && i == 0)
+                {
+                    EquipSlot(0);
+                }
+
+                return true;
+            }
+        }
+
+        // No empty slots found
+        Debug.Log("Inventory is full!");
+        return false;
+    }
+
     private bool AddItemToInventory(GameObject item)
     {
         // Find first empty slot
