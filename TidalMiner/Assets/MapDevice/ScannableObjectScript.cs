@@ -105,6 +105,11 @@ public class ScannableObjectScript : MonoBehaviour
         activeEffects.Add(effect);
     }
 
+    public bool IsCollectible()
+    {
+        return isCollectible;
+    }
+
     private void OnDestroy()
     {
         foreach (var effect in activeEffects)
