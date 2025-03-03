@@ -16,7 +16,6 @@ public class MapDevice : MonoBehaviour
     [SerializeField] private GameObject mapDeviceUI; // The UI panel that contains the radar
     [SerializeField] private RectTransform radarDisplay; // The circular radar display
     [SerializeField] private GameObject dotPrefab; // Red dot prefab to instantiate on radar
-    [SerializeField] private GameObject hologramEffectPrefab; // Hologram effect to show on objects
     [SerializeField] private RectTransform radarSweeperImage;
 
     [Header("Audio")]
@@ -389,59 +388,43 @@ public class MapDevice : MonoBehaviour
             // Check if object is within the show angle
             bool shouldShowHologram = (angleToObject <= hologramShowAngle) && (dotProduct > 0);
 
-            // Update hologram visibility
-            if (shouldShowHologram)
+            // Get the current hologram status
+            bool hasHologram = hologramEffects.ContainsKey(obj);
+
+            // Update hologram visibility only when there's a change in status
+            if (shouldShowHologram && !hasHologram)
             {
+                // Only show the hologram if it's not already showing
                 ShowHologram(obj);
             }
-            else
+            else if (!shouldShowHologram && hasHologram)
             {
+                // Only hide the hologram if it's currently showing
                 HideHologram(obj);
             }
+            // Don't do anything if the status hasn't changed
         }
     }
 
     private void ShowHologram(ScannableObjectScript obj)
     {
-        // Check if we already have a hologram for this object
-        if (hologramEffects.TryGetValue(obj, out GameObject hologram) && hologram != null)
-        {
-            // Hologram already exists and is active
-            return;
-        }
+        // Only notify once and keep track that we've shown this hologram
+        hologramEffects[obj] = null; // We're just using this as a status tracker
 
-        // Create new hologram effect
-        if (hologramEffectPrefab != null)
-        {
-            GameObject newHologram = Instantiate(hologramEffectPrefab, obj.transform.position, Quaternion.identity);
-
-            // Parent to the scannable object if it has a specific attachment point
-            Transform attachPoint = obj.GetHologramAttachPoint();
-            if (attachPoint != null)
-            {
-                newHologram.transform.SetParent(attachPoint);
-                newHologram.transform.localPosition = Vector3.zero;
-            }
-
-            // Store reference
-            hologramEffects[obj] = newHologram;
-
-            // Notify the object that its hologram is shown
-            obj.OnHologramDisplayed();
-        }
+        // This will create the hologram through the HologramEffect component
+        obj.OnHologramDisplayed();
     }
 
     private void HideHologram(ScannableObjectScript obj)
     {
-        // Check if we have a hologram for this object
-        if (hologramEffects.TryGetValue(obj, out GameObject hologram) && hologram != null)
+        // Only notify the object if we previously told it to show a hologram
+        if (hologramEffects.ContainsKey(obj))
         {
-            // Hide the hologram
-            Destroy(hologram);
-            hologramEffects.Remove(obj);
-
-            // Notify the object that its hologram is hidden
+            // Notify the object that its hologram should be hidden
             obj.OnHologramHidden();
+
+            // Remove from our tracking dictionary
+            hologramEffects.Remove(obj);
         }
     }
 
@@ -483,15 +466,18 @@ public class MapDevice : MonoBehaviour
 
     private void CleanupHolograms()
     {
-        // Destroy all active holograms
-        foreach (var hologram in hologramEffects.Values)
+        // Properly notify each object to hide its hologram
+        foreach (var entry in hologramEffects)
         {
-            if (hologram != null)
+            ScannableObjectScript obj = entry.Key;
+            if (obj != null)
             {
-                Destroy(hologram);
+                // Tell the object to hide its hologram
+                obj.OnHologramHidden();
             }
         }
 
+        // Clear the tracking dictionary
         hologramEffects.Clear();
     }
 

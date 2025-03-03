@@ -453,6 +453,7 @@ MonoBehaviour:
   radarSweeperImage: {fileID: 205734192}
   scanSound: {fileID: 8300000, guid: 96f8278c602b8754b88fea849f9052b7, type: 3}
   objectFoundSound: {fileID: 8300000, guid: 68da8c51c51bee2489cd6e39adf9b489, type: 3}
+  activationSound: {fileID: 0}
   audioSource: {fileID: 1077865739}
   activateScannerAction: {fileID: 1120369429361536294, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   sweepSpeed: 120
@@ -1244,7 +1245,7 @@ MonoBehaviour:
   objectDescription: dont suck a lot of dick
   hologramAttachPoint: {fileID: 1130871819}
   isCollectible: 1
-  normalMaterial: {fileID: 0}
+  normalMaterial: {fileID: 2100000, guid: f5dbcc0042a8eec47ab13937798cc901, type: 2}
   highlightMaterial: {fileID: 2100000, guid: 9b16ae0d0d336b342a52786972132873, type: 2}
   highlighEffect: {fileID: 0}
   pulseFrequency: 1.5
@@ -1460,7 +1461,7 @@ MonoBehaviour:
   objectDescription: Sucks a lot of dick
   hologramAttachPoint: {fileID: 1314133214}
   isCollectible: 1
-  normalMaterial: {fileID: 0}
+  normalMaterial: {fileID: 2100000, guid: f5dbcc0042a8eec47ab13937798cc901, type: 2}
   highlightMaterial: {fileID: 2100000, guid: 9b16ae0d0d336b342a52786972132873, type: 2}
   highlighEffect: {fileID: 0}
   pulseFrequency: 1.5
