@@ -7,13 +7,14 @@ public class CollectibleItem : MonoBehaviour
     [Header("Item Settings")]
     [SerializeField] private string itemName = "Item";
     [SerializeField] private string itemDescription = "A collectible item";
-    [SerializeField] private bool isAutoCollect = false; // If true, collect on any collision
-    [SerializeField] private float interactionDistance = 3f; // How close player needs to be
+    [SerializeField] private bool isAutoCollect = false;
+    [SerializeField] private float interactionDistance = 3f;
 
     [Header("UI Prompt")]
-    [SerializeField] private GameObject interactionPromptPrefab; // Assign a prefab with TextMeshPro
-    [SerializeField] private Vector3 promptOffset = new Vector3(0, 1.5f, 0); // Position above item
+    [SerializeField] private GameObject interactionPromptPrefab;
+    [SerializeField] private Vector3 promptOffset = new Vector3(0, 0.5f, 0);
     [SerializeField] private string promptText = "Press E to collect";
+    [SerializeField] private float promptScale = 0.2f; // Control the scale of the prompt
 
     // References
     private GameObject promptInstance;
@@ -32,49 +33,97 @@ public class CollectibleItem : MonoBehaviour
         // Find the main camera
         mainCamera = Camera.main;
 
-        // Get or add ScannableObjectScript component (required for radar detection)
+        // Get or add ScannableObjectScript component
         scannableScript = GetComponent<ScannableObjectScript>();
         if (scannableScript == null)
         {
             scannableScript = gameObject.AddComponent<ScannableObjectScript>();
         }
 
-        // Set the object as collectible in the ScannableObjectScript
+        // Mark this object as collectible
         MarkAsCollectible();
     }
 
     private void Start()
     {
-        // Create the interaction prompt if prefab is assigned
+        // Set the layer to Scannable
+        gameObject.layer = LayerMask.NameToLayer("Scannable");
+
+        // Create the interaction prompt
+        CreatePrompt();
+
+        // Find the player
+        FindPlayer();
+    }
+
+    private void FindPlayer()
+    {
+        GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+        if (playerObj != null)
+        {
+            player = playerObj.transform;
+            playerInventory = playerObj.GetComponent<InventorySystem>();
+            if (playerInventory == null)
+            {
+                playerInventory = playerObj.GetComponentInChildren<InventorySystem>();
+            }
+        }
+        else
+        {
+            Debug.LogWarning("No GameObject with tag 'Player' found. Make sure your player has this tag.");
+        }
+    }
+
+    private void CreatePrompt()
+    {
         if (interactionPromptPrefab != null)
         {
-            promptInstance = Instantiate(interactionPromptPrefab, transform.position + promptOffset, Quaternion.identity);
-            promptInstance.transform.parent = transform;
+            // Calculate position
+            Vector3 promptPosition = transform.position + promptOffset;
 
-            // Find the TextMeshPro component
+            // Instantiate at the correct position
+            promptInstance = Instantiate(interactionPromptPrefab, promptPosition, Quaternion.identity);
+
+            // Scale the prompt to be smaller
+            promptInstance.transform.localScale = Vector3.one * promptScale;
+
+            // Set the text if it exists
             promptTextComponent = promptInstance.GetComponentInChildren<TextMeshProUGUI>();
             if (promptTextComponent != null)
             {
                 promptTextComponent.text = promptText;
             }
+            else
+            {
+                // Try with regular Text component
+                Text regularText = promptInstance.GetComponentInChildren<Text>();
+                if (regularText != null)
+                {
+                    regularText.text = promptText;
+                }
+            }
 
-            // Hide the prompt initially
+            // Hide prompt initially
             promptInstance.SetActive(false);
         }
-
-        // Set the layer to Scannable to ensure it works with the radar
-        gameObject.layer = LayerMask.NameToLayer("Scannable");
     }
 
     private void Update()
     {
-        // Check if player is nearby
+        // Make sure we have found the player
+        if (player == null)
+        {
+            FindPlayer();
+            return;
+        }
+
+        // Check if player is in range
         CheckPlayerInRange();
 
         // Check if player is looking at this object
         CheckPlayerLookingAt();
 
-        // Update prompt visibility
+        // Update prompt visibility and position
         UpdatePrompt();
 
         // Check for input to collect
@@ -86,25 +135,14 @@ public class CollectibleItem : MonoBehaviour
 
     private void CheckPlayerInRange()
     {
-        // First try to find player if we don't have it yet
-        if (player == null)
-        {
-            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
-            if (playerObj != null)
-            {
-                player = playerObj.transform;
-                playerInventory = playerObj.GetComponent<InventorySystem>();
-                if (playerInventory == null)
-                {
-                    playerInventory = playerObj.GetComponentInChildren<InventorySystem>();
-                }
-            }
-        }
-
         if (player != null)
         {
             float distance = Vector3.Distance(transform.position, player.position);
             isInRange = distance <= interactionDistance;
+        }
+        else
+        {
+            isInRange = false;
         }
     }
 
@@ -116,10 +154,11 @@ public class CollectibleItem : MonoBehaviour
             return;
         }
 
-        // Cast a ray from camera to check if it hits this object
+        // Cast a ray from center of screen
         Ray ray = mainCamera.ScreenPointToRay(new Vector3(Screen.width / 2, Screen.height / 2, 0));
         RaycastHit hit;
 
+        // Raycast and check if it hits this object
         if (Physics.Raycast(ray, out hit, interactionDistance))
         {
             isLookingAt = hit.transform == transform || hit.transform.IsChildOf(transform);
@@ -134,18 +173,30 @@ public class CollectibleItem : MonoBehaviour
     {
         if (promptInstance != null)
         {
+            // Determine if prompt should be visible
             bool shouldShowPrompt = isInRange && isLookingAt;
 
-            // Only update if needed
+            // Update visibility
             if (promptInstance.activeSelf != shouldShowPrompt)
             {
                 promptInstance.SetActive(shouldShowPrompt);
             }
 
-            // If showing, make sure it faces the camera
-            if (shouldShowPrompt && mainCamera != null)
+            // If visible, update position and rotation
+            if (shouldShowPrompt)
             {
-                promptInstance.transform.LookAt(2 * promptInstance.transform.position - mainCamera.transform.position);
+                // Update position to stay above object
+                promptInstance.transform.position = transform.position + promptOffset;
+
+                // Make it face the camera (billboard effect)
+                if (mainCamera != null)
+                {
+                    // This makes the prompt always face the camera
+                    promptInstance.transform.LookAt(
+                        promptInstance.transform.position + mainCamera.transform.rotation * Vector3.forward,
+                        mainCamera.transform.rotation * Vector3.up
+                    );
+                }
             }
         }
     }
@@ -158,7 +209,13 @@ public class CollectibleItem : MonoBehaviour
 
             if (collected)
             {
-                // If successfully added to inventory, notify the scannable script
+                // Clean up the prompt
+                if (promptInstance != null)
+                {
+                    Destroy(promptInstance);
+                }
+
+                // Notify the scannable script
                 if (scannableScript != null)
                 {
                     scannableScript.OnCollect();
@@ -174,46 +231,21 @@ public class CollectibleItem : MonoBehaviour
 
     private void MarkAsCollectible()
     {
-        // Use reflection to set the isCollectible field if it exists in ScannableObjectScript
-        // This is a workaround if your ScannableObjectScript doesn't expose IsCollectible setter
+        // Use reflection to set isCollectible field
         var field = typeof(ScannableObjectScript).GetField("isCollectible",
-                                                           System.Reflection.BindingFlags.Instance |
-                                                           System.Reflection.BindingFlags.NonPublic);
+                                                         System.Reflection.BindingFlags.Instance |
+                                                         System.Reflection.BindingFlags.NonPublic);
         if (field != null)
         {
             field.SetValue(scannableScript, true);
         }
     }
 
-    // Automatically collect when player walks into the item if isAutoCollect is true
-    private void OnTriggerEnter(Collider other)
+    private void OnDestroy()
     {
-        if (isAutoCollect && other.CompareTag("Player"))
+        if (promptInstance != null)
         {
-            if (playerInventory == null)
-            {
-                playerInventory = other.GetComponent<InventorySystem>();
-                if (playerInventory == null)
-                {
-                    playerInventory = other.GetComponentInChildren<InventorySystem>();
-                }
-            }
-
-            if (playerInventory != null)
-            {
-                AttemptCollect();
-            }
+            Destroy(promptInstance);
         }
-    }
-
-    // Public methods to get item information
-    public string GetItemName()
-    {
-        return itemName;
-    }
-
-    public string GetItemDescription()
-    {
-        return itemDescription;
     }
 }

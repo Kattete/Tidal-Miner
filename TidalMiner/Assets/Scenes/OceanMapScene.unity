@@ -139,7 +139,7 @@ GameObject:
   - component: {fileID: 185853010}
   m_Layer: 0
   m_Name: Player
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -1388,8 +1388,9 @@ MonoBehaviour:
   isAutoCollect: 0
   interactionDistance: 3
   interactionPromptPrefab: {fileID: 436465303346157463, guid: 038f55247a5a07448a64f82e083bbab3, type: 3}
-  promptOffset: {x: 0, y: 1.5, z: 0}
+  promptOffset: {x: 0, y: 1, z: 0}
   promptText: Press E to collect
+  promptScale: 0.2
 --- !u!1 &1297005511
 GameObject:
   m_ObjectHideFlags: 0
@@ -1577,8 +1578,9 @@ MonoBehaviour:
   isAutoCollect: 0
   interactionDistance: 3
   interactionPromptPrefab: {fileID: 436465303346157463, guid: 038f55247a5a07448a64f82e083bbab3, type: 3}
-  promptOffset: {x: 0, y: 1.5, z: 0}
+  promptOffset: {x: 0, y: 1, z: 0}
   promptText: Press E to collect
+  promptScale: 0.2
 --- !u!1 &1320549440
 GameObject:
   m_ObjectHideFlags: 0
