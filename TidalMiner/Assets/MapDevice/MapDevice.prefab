@@ -375,6 +375,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: MapDevice
       objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 9f7ef93a3b464014c8d4cc5ddcccb26b, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects:
     - {fileID: 65702495048144492, guid: 9f7ef93a3b464014c8d4cc5ddcccb26b, type: 3}
@@ -383,10 +387,52 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: -5477749408508380018, guid: 9f7ef93a3b464014c8d4cc5ddcccb26b, type: 3}
       insertIndex: -1
       addedObject: {fileID: 8820030389996245420}
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 9f7ef93a3b464014c8d4cc5ddcccb26b, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1198811811502801230}
   m_SourcePrefab: {fileID: 100100000, guid: 9f7ef93a3b464014c8d4cc5ddcccb26b, type: 3}
 --- !u!4 &2169805193621041197 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -5477749408508380018, guid: 9f7ef93a3b464014c8d4cc5ddcccb26b, type: 3}
   m_PrefabInstance: {fileID: 3307803477057735843}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &2388812625885082098 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 9f7ef93a3b464014c8d4cc5ddcccb26b, type: 3}
+  m_PrefabInstance: {fileID: 3307803477057735843}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1198811811502801230
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2388812625885082098}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 37c53b207521aa146960e0947dd1078f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  itemHolder: {fileID: 0}
+  scanRadius: 5
+  scanFrequency: 0.5
+  hologramShowAngle: 30
+  scannableLayer:
+    serializedVersion: 2
+    m_Bits: 128
+  mapDeviceUI: {fileID: 4272045871815133178}
+  radarDisplay: {fileID: 290263987542163017}
+  dotPrefab: {fileID: 4223643429683765936, guid: dd345350928b58744bf54fddda5db60d, type: 3}
+  radarSweeperImage: {fileID: 3319923166253678152}
+  scanSound: {fileID: 8300000, guid: 96f8278c602b8754b88fea849f9052b7, type: 3}
+  objectFoundSound: {fileID: 8300000, guid: 68da8c51c51bee2489cd6e39adf9b489, type: 3}
+  activationSound: {fileID: 8300000, guid: da97d57a479467c47af5c0570716a5c5, type: 3}
+  audioSource: {fileID: 0}
+  activateScannerAction: {fileID: 1120369429361536294, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  isScanning: 0
+  sweepSpeed: 120
+  sweepDetectionAngle: 20
+  sweepAngleOffset: 180
+  dotFadeTime: 5
+  dotFadeDuration: 2

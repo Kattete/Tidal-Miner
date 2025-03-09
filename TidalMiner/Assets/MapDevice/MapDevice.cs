@@ -6,6 +6,10 @@ using UnityEngine.InputSystem;
 
 public class MapDevice : MonoBehaviour
 {
+    // New fields for equipment state tracking
+    private bool isEquipped = false;
+    private bool isSlot1Active = false;
+
     [Header("Parent References")]
     [SerializeField] private Transform itemHolder;
 
@@ -16,7 +20,7 @@ public class MapDevice : MonoBehaviour
     [SerializeField] private LayerMask scannableLayer; // Layer for scannable objects
 
     [Header("Visual Elements")]
-    [SerializeField] private GameObject mapDeviceUI; // The UI panel that contains the radar
+    [SerializeField] public GameObject mapDeviceUI; // The UI panel that contains the radar
     [SerializeField] private RectTransform radarDisplay; // The circular radar display
     [SerializeField] private GameObject dotPrefab; // Red dot prefab to instantiate on radar
     [SerializeField] private RectTransform radarSweeperImage;
@@ -31,7 +35,7 @@ public class MapDevice : MonoBehaviour
     [SerializeField] private InputActionReference activateScannerAction;
 
     // Private variables
-    private bool isScanning = false;
+    public bool isScanning = false;
     private float scanTimer = 0f;
     private List<ScannableObjectScript> detectedObjects = new List<ScannableObjectScript>();
     private Dictionary<ScannableObjectScript, GameObject> radarDots = new Dictionary<ScannableObjectScript, GameObject>();
@@ -55,7 +59,7 @@ public class MapDevice : MonoBehaviour
 
     private void Awake()
     {
-        if(itemHolder == null)
+        if (itemHolder == null)
         {
             itemHolder = transform.parent;
         }
@@ -79,6 +83,17 @@ public class MapDevice : MonoBehaviour
         }
 
         StartCoroutine(InitializeComponents());
+
+        InventorySystem inventory = FindObjectOfType<InventorySystem>();
+        if (inventory != null)
+        {
+            if(transform.parent == inventory.GetComponent<InventorySystem>().itemHoldPosition && inventory.currentActiveSlot == 0)
+            {
+                isEquipped = true;
+                isSlot1Active = true;
+                Debug.Log("Map device state automatically initializeed awake");
+            }
+        }
     }
 
     private IEnumerator InitializeComponents()
@@ -101,6 +116,11 @@ public class MapDevice : MonoBehaviour
             }
 
             Debug.Log(gameObject.name + ": MapDeviceUI " + (mapDeviceUI != null ? "found" : "not found"));
+        }
+        // Find the itemHolder
+        if(itemHolder == null)
+        {
+            itemHolder = transform.Find("ItemHolder");
         }
         // Find the radar display if not assigned
         if (radarDisplay == null && mapDeviceUI != null)
@@ -165,57 +185,104 @@ public class MapDevice : MonoBehaviour
 
     private void OnToggleScanner(InputAction.CallbackContext context)
     {
-        isScanning = !isScanning;
+        InventorySystem inventory = FindObjectOfType<InventorySystem>();
 
-        // Toggle the UI
-        if (mapDeviceUI != null)
+        if (inventory != null && inventory.currentActiveSlot == 0 &&
+            inventory.currentEquippedItem != null)
         {
-            mapDeviceUI.SetActive(isScanning);
-        }
-
-        // Play activation sound
-        if (audioSource != null && activationSound != null && isScanning)
-        {
-            audioSource.PlayOneShot(activationSound);
-        }
-
-        // Clear radar when deactivated
-        if (!isScanning)
-        {
-            ClearRadar();
-            CleanupHolograms();
+            // Instead of comparing against this gameObject, 
+            // directly check if the active item has a MapDevice component
+            MapDevice activeMapDevice = inventory.currentEquippedItem.GetComponent<MapDevice>();
+            if (activeMapDevice != null)
+            {
+                // Toggle the active map device (not necessarily this script's instance)
+                activeMapDevice.DirectToggleScanner();
+                Debug.Log("Toggled scanner via direct method");
+            }
         }
     }
 
     private void Update()
     {
-        if (!isScanning) return;
+        // Get inventory system
+        InventorySystem inventory = FindObjectOfType<InventorySystem>();
 
-        // Increment scan timer
-        scanTimer += Time.deltaTime;
-
-        sweepRoation = (sweepRoation + sweepSpeed * Time.deltaTime) % 360;
-        if(radarSweeperImage != null)
+        // Only run if this exact instance is currently equipped and in slot 0
+        if (inventory != null &&
+            inventory.currentEquippedItem == gameObject &&
+            inventory.currentActiveSlot == 0 &&
+            isScanning)
         {
-            radarSweeperImage.localRotation = Quaternion.Euler(0, 0, -sweepRoation);
-        }
+            // Increment scan timer
+            scanTimer += Time.deltaTime;
 
-        // Perform scan at regular intervals
-        if (scanTimer >= scanFrequency)
+            // Rest of update code stays the same
+            sweepRoation = (sweepRoation + sweepSpeed * Time.deltaTime) % 360;
+            if (radarSweeperImage != null)
+            {
+                radarSweeperImage.localRotation = Quaternion.Euler(0, 0, -sweepRoation);
+            }
+
+            // Perform scan at regular intervals
+            if (scanTimer >= scanFrequency)
+            {
+                PerformScan();
+                scanTimer = 0f;
+            }
+
+            // Update radar dots positions
+            UpdateRadarDisplay();
+
+            // Check which objects are in view to show holograms
+            UpdateHolograms();
+
+            // Update dot visibility based on current sweep position;
+            UpdateDotVisibility(sweepRoation);
+        }
+        else if (isScanning)
         {
-            PerformScan();
-            scanTimer = 0f;
+            // If we're scanning but not equipped/active, turn off scanning
+            isScanning = false;
+            if (mapDeviceUI != null)
+            {
+                mapDeviceUI.SetActive(false);
+            }
+            ClearRadar();
+            CleanupHolograms();
         }
-
-        // Update radar dots positions
-        UpdateRadarDisplay();
-
-        // Check which objects are in view to show holograms
-        UpdateHolograms();
-
-        // Update dot visibility based on current sweep position;
-        UpdateDotVisibility(sweepRoation);
     }
+
+    // New method to handle equipment state
+    public void SetEquipmentState(bool isEquipped, bool isInFirstSlot)
+    {
+        Debug.Log($"Map device state changing from [equipped={this.isEquipped}, slot1={this.isSlot1Active}] to [equipped={isEquipped}, slot1={isInFirstSlot}]");
+
+        this.isEquipped = isEquipped;
+        this.isSlot1Active = isInFirstSlot;
+
+        // If no longer equipped or not in slot 1, force scanner off
+        if (!isEquipped || !isInFirstSlot)
+        {
+            // Force deactivate radar
+            if (isScanning)
+            {
+                isScanning = false;
+
+                // Turn off UI
+                if (mapDeviceUI != null)
+                {
+                    mapDeviceUI.SetActive(false);
+                }
+
+                // Clear radar and holograms
+                ClearRadar();
+                CleanupHolograms();
+
+                Debug.Log("Map device forcefully deactivated due to equipment state change");
+            }
+        }
+    }
+
 
     private void PerformScan()
     {
@@ -279,7 +346,7 @@ public class MapDevice : MonoBehaviour
         dot.SetActive(initiallyVisible);
 
         Image dotImage = dot.GetComponent<Image>();
-        if(dotImage != null)
+        if (dotImage != null)
         {
             Color color = dotImage.color;
             dotImage.color = new Color(color.r, color.g, color.b, initiallyVisible ? 1f : 0f);
@@ -287,6 +354,35 @@ public class MapDevice : MonoBehaviour
 
         // Store reference to the dot
         radarDots[scannableObject] = dot;
+    }
+
+    // This allows the inventory system to directly tell the map device to toggle
+    public void DirectToggleScanner()
+    {
+        Debug.Log("Direct toggle scanner called");
+
+        // Toggle scanner state
+        isScanning = !isScanning;
+
+        // Toggle the UI
+        if (mapDeviceUI != null)
+        {
+            mapDeviceUI.SetActive(isScanning);
+            Debug.Log($"Map device UI {(isScanning ? "activated" : "deactivated")}");
+        }
+
+        // Play activation sound
+        if (audioSource != null && activationSound != null && isScanning)
+        {
+            audioSource.PlayOneShot(activationSound);
+        }
+
+        // Clear radar when deactivated
+        if (!isScanning)
+        {
+            ClearRadar();
+            CleanupHolograms();
+        }
     }
 
     private void UpdateRadarDisplay()
@@ -326,7 +422,7 @@ public class MapDevice : MonoBehaviour
                 radarAngle = (radarAngle + 360) % 360;
                 objectAngles[obj] = radarAngle;
                 float radarAngleRad = radarAngle * Mathf.Deg2Rad;
-                
+
 
                 // Calculate position on radar
                 float x = Mathf.Sin(radarAngleRad) * normalizedDist * radarRadius;
@@ -336,7 +432,7 @@ public class MapDevice : MonoBehaviour
                 RectTransform dotRect = dot.GetComponent<RectTransform>();
                 if (dotRect != null)
                 {
-                    dotRect.anchoredPosition = new Vector2(x,y);
+                    dotRect.anchoredPosition = new Vector2(x, y);
                 }
             }
         }
@@ -396,7 +492,7 @@ public class MapDevice : MonoBehaviour
             }
             else
             {
-                if(hasBeenSwept.ContainsKey(obj) && hasBeenSwept[obj])
+                if (hasBeenSwept.ContainsKey(obj) && hasBeenSwept[obj])
                 {
                     // Object not under sweeper - update its fade timer
                     if (dotVisibilityTimer.ContainsKey(obj))
@@ -429,7 +525,7 @@ public class MapDevice : MonoBehaviour
                         dotVisibilityTimer[obj] = 0f;
                     }
                 }
-                
+
             }
         }
     }
@@ -518,7 +614,7 @@ public class MapDevice : MonoBehaviour
         }
     }
 
-    private void ClearRadar()
+    public void ClearRadar()
     {
         // Destroy all dots on the radar
         foreach (var dot in radarDots.Values)
@@ -533,7 +629,7 @@ public class MapDevice : MonoBehaviour
         detectedObjects.Clear();
     }
 
-    private void CleanupHolograms()
+    public void CleanupHolograms()
     {
         // Properly notify each object to hide its hologram
         foreach (var entry in hologramEffects)
@@ -548,6 +644,40 @@ public class MapDevice : MonoBehaviour
 
         // Clear the tracking dictionary
         hologramEffects.Clear();
+    }
+
+    public void SetScannerActive(bool active)
+    {
+        if (active != isScanning)
+        {
+            isScanning = active;
+
+            if (mapDeviceUI != null)
+            {
+                mapDeviceUI.SetActive(isScanning);
+            }
+
+            if (isScanning && audioSource != null && activationSound != null)
+            {
+                audioSource.PlayOneShot(activationSound);
+            }
+
+            if (!isScanning)
+            {
+                ClearRadar();
+                CleanupHolograms();
+                Debug.Log("Map device scanner deactivated");
+            }
+            else
+            {
+                Debug.Log("Map device scanner activated");
+            }
+        }
+    }
+
+    public void DebugState()
+    {
+        Debug.Log($"MAP DEVICE STATE: isEquipped={isEquipped}, isSlot1Active={isSlot1Active}, isScanning={isScanning}");
     }
 
     // For debugging

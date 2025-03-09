@@ -1,39 +1,64 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
+using TMPro;
 
 public class InventorySystem : MonoBehaviour
 {
     [System.Serializable]
     public class InventorySlot
     {
-        public GameObject itemInSlot;
+        public string itemID = "";
+        public GameObject itemInstance; // The actual equipped item
         public RectTransform slotTransform;
         public bool isOccupied;
+        public int quantity = 0;
+        public Image itemIcon; // 2D sprite image instead of 3D model
+        public TextMeshProUGUI quantityText; // Text showing stack count
+    }
+
+    [System.Serializable]
+    public class ItemSpriteMapping
+    {
+        public string itemID;
+        public Sprite itemSprite; // 2D sprite for inventory display
+        [Tooltip("Adjust the icon's size within the slot (0-1 for percentage of slot size)")]
+        [Range(0.1f, 1.0f)]
+        public float sizeFactor = 0.8f; // How much of the slot the icon should fill
+        [Tooltip("Color tint for the sprite (default is white = no tint)")]
+        public Color tint = Color.white;
     }
 
     [Header("Inventory Settings")]
     [SerializeField] private int maxSlots = 4;
     [SerializeField] private GameObject mapDevicePrefab;
-    [SerializeField] private Transform itemHoldPosition;
-    [SerializeField] private Color highlightedSlotColor = new Color(1f, 0.8f, 0f, 1f);
-    [SerializeField] private Vector3 highlightedScale = new Vector3(1.1f, 1.1f, 1.1f);
+    [SerializeField] public Transform itemHoldPosition;
 
     [Header("UI References")]
     [SerializeField] private RectTransform[] slotTransforms;
     [SerializeField] private GameObject slotHighlight;
+    [SerializeField] private Vector3 highlightedScale = new Vector3(1.1f, 1.1f, 1.1f);
+    [SerializeField] private GameObject quantityTextPrefab; // TextMesh Pro text prefab
+
+    [Header("Item Sprites")]
+    [SerializeField] private List<ItemSpriteMapping> itemSprites = new List<ItemSpriteMapping>();
+    [SerializeField] private Sprite defaultSprite; // Fallback sprite if no specific one is found
+    [SerializeField] private Color defaultTint = Color.white;
+    [Range(0.1f, 1.0f)]
+    [SerializeField] private float defaultSizeFactor = 0.8f;
 
     [Header("Input")]
     [SerializeField] private InputActionReference slot1Action;
     [SerializeField] private InputActionReference slot2Action;
     [SerializeField] private InputActionReference slot3Action;
     [SerializeField] private InputActionReference slot4Action;
-    [SerializeField] private InputActionReference interactAction;
 
-    private InventorySlot[] inventorySlots;
-    private int currentActiveSlot = 0;
-    private GameObject currentEquippedItem;
-    private List<GameObject> itemsInRange = new List<GameObject>();
+    // Private variables
+    public InventorySlot[] inventorySlots;
+    public int currentActiveSlot = 0;
+    public GameObject currentEquippedItem;
+    private MapDevice mapDeviceComponent;
 
     private void Awake()
     {
@@ -43,16 +68,58 @@ public class InventorySystem : MonoBehaviour
         {
             inventorySlots[i] = new InventorySlot
             {
-                itemInSlot = null,
+                itemID = "",
+                itemInstance = null,
                 slotTransform = (i < slotTransforms.Length) ? slotTransforms[i] : null,
-                isOccupied = false
+                isOccupied = false,
+                quantity = 0,
+                itemIcon = null,
+                quantityText = null
             };
+
+            // Create UI elements for each slot
+            if (slotTransforms[i] != null)
+            {
+                // Create item icon (sprite)
+                GameObject iconObj = new GameObject("ItemIcon");
+                iconObj.transform.SetParent(slotTransforms[i], false);
+
+                // Set up RectTransform to position within slot
+                RectTransform iconRect = iconObj.AddComponent<RectTransform>();
+                iconRect.anchorMin = new Vector2(0.1f, 0.1f); // Small margin from edges
+                iconRect.anchorMax = new Vector2(0.9f, 0.9f); // Small margin from edges
+                iconRect.offsetMin = Vector2.zero;
+                iconRect.offsetMax = Vector2.zero;
+
+                // Add Image component for the sprite
+                Image iconImage = iconObj.AddComponent<Image>();
+                iconImage.preserveAspect = true; // Maintain aspect ratio
+                iconImage.raycastTarget = false; // Don't block raycasts
+
+                // Hide initially and store reference
+                iconImage.gameObject.SetActive(false);
+                inventorySlots[i].itemIcon = iconImage;
+
+                // Create quantity text if prefab exists
+                if (quantityTextPrefab != null)
+                {
+                    GameObject textObj = Instantiate(quantityTextPrefab, slotTransforms[i]);
+                    textObj.transform.SetAsLastSibling(); // Ensure it's on top
+                    inventorySlots[i].quantityText = textObj.GetComponent<TextMeshProUGUI>();
+
+                    if (inventorySlots[i].quantityText != null)
+                    {
+                        inventorySlots[i].quantityText.text = "";
+                        inventorySlots[i].quantityText.gameObject.SetActive(false);
+                    }
+                }
+            }
         }
 
         // Add map device to first slot
         if (mapDevicePrefab != null)
         {
-            AddItemToInventory(mapDevicePrefab);
+            AddItem(mapDevicePrefab, "MapDevice");
         }
     }
 
@@ -70,7 +137,7 @@ public class InventorySystem : MonoBehaviour
 
     private void EnableInputActions(bool enable)
     {
-        InputActionReference[] actions = { slot1Action, slot2Action, slot3Action, slot4Action, interactAction };
+        InputActionReference[] actions = { slot1Action, slot2Action, slot3Action, slot4Action };
 
         foreach (var action in actions)
         {
@@ -83,7 +150,6 @@ public class InventorySystem : MonoBehaviour
                     else if (action == slot2Action) action.action.performed += OnSlot2;
                     else if (action == slot3Action) action.action.performed += OnSlot3;
                     else if (action == slot4Action) action.action.performed += OnSlot4;
-                    else if (action == interactAction) action.action.performed += OnInteract;
                 }
                 else
                 {
@@ -91,7 +157,6 @@ public class InventorySystem : MonoBehaviour
                     else if (action == slot2Action) action.action.performed -= OnSlot2;
                     else if (action == slot3Action) action.action.performed -= OnSlot3;
                     else if (action == slot4Action) action.action.performed -= OnSlot4;
-                    else if (action == interactAction) action.action.performed -= OnInteract;
                     action.action.Disable();
                 }
             }
@@ -105,13 +170,12 @@ public class InventorySystem : MonoBehaviour
 
     private void EquipSlot(int slotIndex)
     {
-        // Check if slot is in valid range
-        if (slotIndex < 0 || slotIndex >= maxSlots)
+        // Check if slot is valid and occupied
+        if (slotIndex < 0 || slotIndex >= maxSlots || !inventorySlots[slotIndex].isOccupied)
             return;
 
-        // Check if the slot has an item
-        if (!inventorySlots[slotIndex].isOccupied)
-            return;
+        // First, tell the current map device it's no longer equipped (if it exists)
+        UpdateMapDeviceState(false, false);
 
         // Unequip current item if any
         if (currentEquippedItem != null)
@@ -119,22 +183,46 @@ public class InventorySystem : MonoBehaviour
             currentEquippedItem.SetActive(false);
         }
 
-        // Equip new item
+        // Update active slot
         currentActiveSlot = slotIndex;
-        currentEquippedItem = inventorySlots[slotIndex].itemInSlot;
+        currentEquippedItem = inventorySlots[slotIndex].itemInstance;
 
         if (currentEquippedItem != null)
         {
-            currentEquippedItem.SetActive(true);
-
-            // Position in hand/hold position
+            // Position in hand
             currentEquippedItem.transform.position = itemHoldPosition.position;
             currentEquippedItem.transform.rotation = itemHoldPosition.rotation;
-            currentEquippedItem.transform.parent = itemHoldPosition;
+            currentEquippedItem.transform.SetParent(itemHoldPosition);
+
+            // Activate the item
+            currentEquippedItem.SetActive(true);
+
+            // Tell the map device about its state
+            bool isMapDeviceNowEquipped = (slotIndex == 0) && (currentEquippedItem.GetComponent<MapDevice>() != null);
+            if (isMapDeviceNowEquipped)
+            {
+                UpdateMapDeviceState(true, true);
+                Debug.Log("Map Device equipped and active in slot 0");
+            }
         }
 
-        // Update UI to show which slot is active
+        // Update UI
         UpdateSlotHighlight();
+    }
+
+    // Method to update map device state
+    private void UpdateMapDeviceState(bool isEquipped, bool isInFirstSlot)
+    {
+        // Find the map device in slot 0
+        if (inventorySlots[0].isOccupied && inventorySlots[0].itemInstance != null)
+        {
+            MapDevice mapDevice = inventorySlots[0].itemInstance.GetComponent<MapDevice>();
+            if (mapDevice != null)
+            {
+                mapDevice.SetEquipmentState(isEquipped, isInFirstSlot);
+                Debug.Log($"Updated map device state: equipped={isEquipped}, inSlot1={isInFirstSlot}");
+            }
+        }
     }
 
     private void UpdateSlotHighlight()
@@ -145,7 +233,6 @@ public class InventorySystem : MonoBehaviour
             if (slotTransforms[i] != null)
             {
                 slotTransforms[i].localScale = Vector3.one;
-                // If you have an Image component on slots, you can change color here
             }
         }
 
@@ -154,7 +241,6 @@ public class InventorySystem : MonoBehaviour
         {
             slotTransforms[currentActiveSlot].localScale = highlightedScale;
 
-            // Move highlight visual element if available
             if (slotHighlight != null)
             {
                 slotHighlight.transform.position = slotTransforms[currentActiveSlot].position;
@@ -163,190 +249,219 @@ public class InventorySystem : MonoBehaviour
         }
     }
 
-    private void OnInteract(InputAction.CallbackContext context)
+    // Method to add an item to inventory
+    public bool AddItem(GameObject item, string itemID)
     {
-        // Check for nearby collectible items
-        CheckForItemsInRange();
+        if (item == null || string.IsNullOrEmpty(itemID)) return false;
 
-        if (itemsInRange.Count > 0)
-        {
-            // Get the closest item
-            GameObject closestItem = GetClosestItem();
-
-            if (closestItem != null)
-            {
-                ScannableObjectScript scannableObject = closestItem.GetComponent<ScannableObjectScript>();
-
-                if (scannableObject != null && scannableObject.IsCollectible())
-                {
-                    // Add to inventory
-                    bool added = AddItemToInventory(closestItem);
-
-                    if (added)
-                    {
-                        // Collect the item (this will hide it from the world)
-                        scannableObject.OnCollect();
-
-                        // Remove from the in-range list
-                        itemsInRange.Remove(closestItem);
-                    }
-                }
-            }
-        }
-    }
-
-    public bool AddItem(GameObject item)
-    {
-        // Find first empty slot
+        // Check if we already have this stackable item
         for (int i = 0; i < maxSlots; i++)
         {
-            if (!inventorySlots[i].isOccupied)
+            if (inventorySlots[i].isOccupied && inventorySlots[i].itemID == itemID)
             {
-                // Add to slot
-                inventorySlots[i].itemInSlot = item;
-                inventorySlots[i].isOccupied = true;
+                // Increase stack count
+                inventorySlots[i].quantity++;
 
-                // Create a UI representation in the slot
-                CreateItemUIRepresentation(item, inventorySlots[i].slotTransform);
+                // Update quantity text
+                UpdateQuantityText(i);
 
-                // If this is the first item added and nothing is equipped, equip it
-                if (currentEquippedItem == null && i == 0)
+                // Disable colliders to prevent further interaction
+                DisableColliders(item);
+
+                // If it's not the map device, deactivate the original
+                if (item.GetComponent<MapDevice>() == null)
                 {
-                    EquipSlot(0);
+                    item.SetActive(false);
                 }
 
                 return true;
             }
         }
 
-        // No empty slots found
-        Debug.Log("Inventory is full!");
-        return false;
-    }
-
-    private bool AddItemToInventory(GameObject item)
-    {
         // Find first empty slot
         for (int i = 0; i < maxSlots; i++)
         {
             if (!inventorySlots[i].isOccupied)
             {
-                // If this is a prefab, instantiate it
-                GameObject itemToAdd;
-                if (item.scene.name == null)
+                // Prepare the item
+                GameObject itemInstance;
+                if (item.scene.name == null) // It's a prefab
                 {
-                    itemToAdd = Instantiate(item);
+                    itemInstance = Instantiate(item);
                 }
                 else
                 {
-                    itemToAdd = item;
+                    itemInstance = item;
+                    // Disable colliders to prevent further interaction
+                    DisableColliders(itemInstance);
                 }
 
-                // Add to slot
-                inventorySlots[i].itemInSlot = itemToAdd;
+                // Setup the inventory slot
+                inventorySlots[i].itemID = itemID;
+                inventorySlots[i].itemInstance = itemInstance;
                 inventorySlots[i].isOccupied = true;
+                inventorySlots[i].quantity = 1;
 
-                // Initially deactivate the item
-                itemToAdd.SetActive(false);
+                // Set up the sprite icon
+                SetItemSprite(i, itemID);
 
-                // Create a UI representation in the slot
-                CreateItemUIRepresentation(itemToAdd, inventorySlots[i].slotTransform);
+                // Update quantity text
+                UpdateQuantityText(i);
 
-                // If this is the first item added and nothing is equipped, equip it
-                if (currentEquippedItem == null && i == 0)
+                // Deactivate initially
+                itemInstance.SetActive(false);
+
+                // If this is the first item and none equipped, equip it
+                if (currentEquippedItem == null)
                 {
-                    EquipSlot(0);
+                    EquipSlot(i);
+                }
+
+                if (i == 0)
+                {
+                    MapDevice mapDevice = itemInstance.GetComponent<MapDevice>();
+                    if (mapDevice != null)
+                    {
+                        mapDevice.SetEquipmentState(true, true);
+                        Debug.Log("Map device state initialized during addition to inventory");
+                    }
                 }
 
                 return true;
             }
         }
 
-        // No empty slots found
-        Debug.Log("Inventory is full!");
+        // Inventory full
         return false;
     }
 
-    private void CreateItemUIRepresentation(GameObject item, RectTransform slotTransform)
+    // Get sprite mapping for an item ID
+    private ItemSpriteMapping GetSpriteMappingForItem(string itemID)
     {
-        if (slotTransform == null) return;
-
-        // Create a simple UI representation (modify as needed for your game)
-        GameObject uiRepresentation = new GameObject(item.name + "_UI");
-        uiRepresentation.transform.SetParent(slotTransform, false);
-
-        // Add a UI image component
-        UnityEngine.UI.Image image = uiRepresentation.AddComponent<UnityEngine.UI.Image>();
-
-        // You might want to use an icon from the item itself if available
-        // For now, we'll just use a simple colored image
-
-        // Try to get a distinctive color
-        Renderer renderer = item.GetComponentInChildren<Renderer>();
-        if (renderer != null && renderer.sharedMaterial != null)
+        // Find the matching sprite mapping
+        foreach (var mapping in itemSprites)
         {
-            // Try to get the color from the material
-            if (renderer.sharedMaterial.HasProperty("_Color"))
+            if (mapping.itemID == itemID && mapping.itemSprite != null)
             {
-                image.color = renderer.sharedMaterial.color;
+                return mapping;
             }
-            else
-            {
-                // Default color
-                image.color = new Color(0.8f, 0.8f, 0.8f, 1f);
-            }
+        }
+
+        // No matching sprite found
+        return null;
+    }
+
+    // Set sprite for an inventory slot
+    private void SetItemSprite(int slotIndex, string itemID)
+    {
+        InventorySlot slot = inventorySlots[slotIndex];
+        if (slot.slotTransform == null || slot.itemIcon == null) return;
+
+        // Get the appropriate sprite for this item
+        ItemSpriteMapping spriteMapping = GetSpriteMappingForItem(itemID);
+
+        // If we have a specific mapping, use it
+        if (spriteMapping != null)
+        {
+            slot.itemIcon.sprite = spriteMapping.itemSprite;
+            slot.itemIcon.color = spriteMapping.tint;
+
+            // Adjust size based on the size factor
+            RectTransform iconRect = slot.itemIcon.GetComponent<RectTransform>();
+            float sizeFactor = spriteMapping.sizeFactor;
+            iconRect.anchorMin = new Vector2(0.5f - sizeFactor / 2, 0.5f - sizeFactor / 2);
+            iconRect.anchorMax = new Vector2(0.5f + sizeFactor / 2, 0.5f + sizeFactor / 2);
+            iconRect.offsetMin = Vector2.zero;
+            iconRect.offsetMax = Vector2.zero;
+        }
+        // Otherwise use the default sprite
+        else if (defaultSprite != null)
+        {
+            slot.itemIcon.sprite = defaultSprite;
+            slot.itemIcon.color = defaultTint;
+
+            // Use default size factor
+            RectTransform iconRect = slot.itemIcon.GetComponent<RectTransform>();
+            iconRect.anchorMin = new Vector2(0.5f - defaultSizeFactor / 2, 0.5f - defaultSizeFactor / 2);
+            iconRect.anchorMax = new Vector2(0.5f + defaultSizeFactor / 2, 0.5f + defaultSizeFactor / 2);
+            iconRect.offsetMin = Vector2.zero;
+            iconRect.offsetMax = Vector2.zero;
         }
         else
         {
-            // Default color
-            image.color = new Color(0.8f, 0.8f, 0.8f, 1f);
+            // No sprite available
+            slot.itemIcon.gameObject.SetActive(false);
+            Debug.LogWarning($"No sprite found for item: {itemID}");
+            return;
         }
 
-        // Size the image to fit in the slot
-        RectTransform rectTransform = image.rectTransform;
-        rectTransform.anchorMin = new Vector2(0.1f, 0.1f);
-        rectTransform.anchorMax = new Vector2(0.9f, 0.9f);
-        rectTransform.offsetMin = Vector2.zero;
-        rectTransform.offsetMax = Vector2.zero;
+        // Show the sprite
+        slot.itemIcon.gameObject.SetActive(true);
+
+        Debug.Log($"Set sprite for {itemID} in slot {slotIndex}");
     }
 
-    private void CheckForItemsInRange()
+    // Update quantity text
+    private void UpdateQuantityText(int slotIndex)
     {
-        // Clear previous list
-        itemsInRange.Clear();
+        if (slotIndex < 0 || slotIndex >= maxSlots) return;
 
-        // Find all scannable objects in range
-        Collider[] hitColliders = Physics.OverlapSphere(transform.position, 2f, LayerMask.GetMask("Scannable"));
+        InventorySlot slot = inventorySlots[slotIndex];
 
-        foreach (var hitCollider in hitColliders)
+        if (slot.quantityText != null)
         {
-            ScannableObjectScript scannableObject = hitCollider.GetComponent<ScannableObjectScript>();
-
-            if (scannableObject != null && scannableObject.IsCollectible())
+            if (slot.quantity > 1)
             {
-                itemsInRange.Add(hitCollider.gameObject);
+                slot.quantityText.text = slot.quantity.ToString();
+                slot.quantityText.gameObject.SetActive(true);
+            }
+            else
+            {
+                slot.quantityText.text = "";
+                slot.quantityText.gameObject.SetActive(false);
             }
         }
     }
 
-    private GameObject GetClosestItem()
+    // Helper method to disable colliders
+    private void DisableColliders(GameObject item)
     {
-        if (itemsInRange.Count == 0) return null;
-
-        GameObject closest = null;
-        float closestDistance = float.MaxValue;
-
-        foreach (GameObject item in itemsInRange)
+        Collider[] colliders = item.GetComponentsInChildren<Collider>();
+        foreach (Collider collider in colliders)
         {
-            float distance = Vector3.Distance(transform.position, item.transform.position);
+            collider.enabled = false;
+        }
+    }
 
-            if (distance < closestDistance)
+    // Check if we have a specific item ID in inventory
+    public bool HasItem(string itemID)
+    {
+        if (string.IsNullOrEmpty(itemID)) return false;
+
+        for (int i = 0; i < maxSlots; i++)
+        {
+            if (inventorySlots[i].isOccupied && inventorySlots[i].itemID == itemID)
             {
-                closest = item;
-                closestDistance = distance;
+                return true;
             }
         }
 
-        return closest;
+        return false;
+    }
+
+    // Get quantity of a specific item
+    public int GetItemQuantity(string itemID)
+    {
+        if (string.IsNullOrEmpty(itemID)) return 0;
+
+        for (int i = 0; i < maxSlots; i++)
+        {
+            if (inventorySlots[i].isOccupied && inventorySlots[i].itemID == itemID)
+            {
+                return inventorySlots[i].quantity;
+            }
+        }
+
+        return 0;
     }
 }

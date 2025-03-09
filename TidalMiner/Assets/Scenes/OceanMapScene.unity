@@ -135,7 +135,6 @@ GameObject:
   - component: {fileID: 185853002}
   - component: {fileID: 185853001}
   - component: {fileID: 185853008}
-  - component: {fileID: 185853009}
   - component: {fileID: 185853010}
   m_Layer: 0
   m_Name: Player
@@ -441,39 +440,6 @@ MonoBehaviour:
   smoothTime: 0.05
   maxLookUpAngle: 80
   maxLookDownAngle: -80
---- !u!114 &185853009
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 185853000}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 37c53b207521aa146960e0947dd1078f, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  itemHolder: {fileID: 0}
-  scanRadius: 5
-  scanFrequency: 0.5
-  hologramShowAngle: 30
-  scannableLayer:
-    serializedVersion: 2
-    m_Bits: 128
-  mapDeviceUI: {fileID: 0}
-  radarDisplay: {fileID: 0}
-  dotPrefab: {fileID: 4223643429683765936, guid: dd345350928b58744bf54fddda5db60d, type: 3}
-  radarSweeperImage: {fileID: 0}
-  scanSound: {fileID: 8300000, guid: 96f8278c602b8754b88fea849f9052b7, type: 3}
-  objectFoundSound: {fileID: 8300000, guid: 68da8c51c51bee2489cd6e39adf9b489, type: 3}
-  activationSound: {fileID: 0}
-  audioSource: {fileID: 1077865739}
-  activateScannerAction: {fileID: 1120369429361536294, guid: 052faaac586de48259a63d0c4782560b, type: 3}
-  sweepSpeed: 120
-  sweepDetectionAngle: 20
-  sweepAngleOffset: 180
-  dotFadeTime: 1
-  dotFadeDuration: 0.5
 --- !u!114 &185853010
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -489,19 +455,35 @@ MonoBehaviour:
   maxSlots: 4
   mapDevicePrefab: {fileID: 2388812625885082098, guid: ff3ba0678ad752548a09dd21fd2ca81f, type: 3}
   itemHoldPosition: {fileID: 1297005512}
-  highlightedSlotColor: {r: 1, g: 0.8, b: 0, a: 1}
-  highlightedScale: {x: 1.1, y: 1.1, z: 1.1}
   slotTransforms:
   - {fileID: 1836663318}
   - {fileID: 2077879508}
   - {fileID: 1320549441}
   - {fileID: 539464769}
   slotHighlight: {fileID: 0}
+  highlightedScale: {x: 1.1, y: 1.1, z: 1.1}
+  quantityTextPrefab: {fileID: 5330676963339610376, guid: fb5b4130cfbcb6a46818158d72df4942, type: 3}
+  itemDisplayModels:
+  - itemID: 1
+    modelPrefab: {fileID: 1314133210}
+    positionOffset: {x: 0, y: 0, z: 0}
+    rotationOffset: {x: 0, y: 0, z: 0}
+    scale: {x: 5, y: 5, z: 5}
+  - itemID: MapDevice
+    modelPrefab: {fileID: 2388812625885082098, guid: ff3ba0678ad752548a09dd21fd2ca81f, type: 3}
+    positionOffset: {x: 0, y: 0, z: 0}
+    rotationOffset: {x: 0, y: 0, z: 0}
+    scale: {x: 5, y: 5, z: 5}
+  defaultDisplayModel: {fileID: 2388812625885082098, guid: ff3ba0678ad752548a09dd21fd2ca81f, type: 3}
+  defaultModelRotation: {x: 30, y: 45, z: 0}
+  defaultModelScale: {x: 0.5, y: 0.5, z: 0.5}
   slot1Action: {fileID: 4970765415646977477, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   slot2Action: {fileID: 454323402959466286, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   slot3Action: {fileID: -41632796325211527, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   slot4Action: {fileID: 6279882251130016330, guid: 052faaac586de48259a63d0c4782560b, type: 3}
-  interactAction: {fileID: 1781555164194001046, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  inventorySlots: []
+  currentActiveSlot: 0
+  currentEquippedItem: {fileID: 0}
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0
@@ -753,15 +735,15 @@ Canvas:
   m_Enabled: 1
   serializedVersion: 3
   m_RenderMode: 0
-  m_Camera: {fileID: 0}
+  m_Camera: {fileID: 330585545}
   m_PlaneDistance: 100
   m_PixelPerfect: 0
   m_ReceivesEvents: 1
   m_OverrideSorting: 0
   m_OverridePixelPerfect: 0
   m_SortingBucketNormalizedSize: 0
-  m_VertexColorAlwaysGammaSpace: 0
-  m_AdditionalShaderChannelsFlag: 0
+  m_VertexColorAlwaysGammaSpace: 1
+  m_AdditionalShaderChannelsFlag: 25
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0
   m_SortingOrder: 0
@@ -1385,6 +1367,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemName: Item
   itemDescription: A collectible item
+  itemID: 1
   isAutoCollect: 0
   interactionDistance: 3
   interactionPromptPrefab: {fileID: 436465303346157463, guid: 038f55247a5a07448a64f82e083bbab3, type: 3}
@@ -1575,6 +1558,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemName: Item
   itemDescription: A collectible item
+  itemID: 1
   isAutoCollect: 0
   interactionDistance: 3
   interactionPromptPrefab: {fileID: 436465303346157463, guid: 038f55247a5a07448a64f82e083bbab3, type: 3}

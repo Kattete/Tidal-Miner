@@ -7,6 +7,7 @@ public class CollectibleItem : MonoBehaviour
     [Header("Item Settings")]
     [SerializeField] private string itemName = "Item";
     [SerializeField] private string itemDescription = "A collectible item";
+    [SerializeField] private string itemID;
     [SerializeField] private bool isAutoCollect = false;
     [SerializeField] private float interactionDistance = 3f;
 
@@ -205,7 +206,7 @@ public class CollectibleItem : MonoBehaviour
     {
         if (playerInventory != null)
         {
-            bool collected = playerInventory.AddItem(gameObject);
+            bool collected = playerInventory.AddItem(gameObject, itemID);
 
             if (collected)
             {
@@ -215,15 +216,16 @@ public class CollectibleItem : MonoBehaviour
                     Destroy(promptInstance);
                 }
 
-                // Notify the scannable script
-                if (scannableScript != null)
+                Collider[] colliders = GetComponentsInChildren<Collider>();
+                foreach (Collider collider in colliders)
                 {
-                    scannableScript.OnCollect();
+                    collider.enabled = false;
                 }
-                else
+
+                ScannableObjectScript scannable = GetComponent<ScannableObjectScript>();
+                if(scannable != null)
                 {
-                    // Fallback if no scannable script
-                    gameObject.SetActive(false);
+                    scannable.OnCollect();
                 }
             }
         }
