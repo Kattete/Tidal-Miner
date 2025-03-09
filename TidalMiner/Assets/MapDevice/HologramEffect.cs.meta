@@ -1,0 +1,13 @@
+fileFormatVersion: 2
+guid: d95ed13bd4a23c145a40eedf30d06e78
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - hologramMaterial: {fileID: 2100000, guid: 9b16ae0d0d336b342a52786972132873, type: 2}
+  - hologramEffectPrefab: {fileID: 602043729323480928, guid: 51ec9910570ef4440a3a0b274ab41031, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
