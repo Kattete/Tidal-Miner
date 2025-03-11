@@ -13,7 +13,7 @@ public class WeatherController : MonoBehaviour
 
     [Header("Weather Controls")]
     [Range(0, 10)]
-    [SerializeField] private float weatherIntensity = 0;
+    [SerializeField] private float rainIntensity = 0;
 
     // Store initial emission rates and particle counts
     private float initialRainEmissionRate;
@@ -43,11 +43,11 @@ public class WeatherController : MonoBehaviour
         {
             // Update emission rate
             var rainEmission = rainParticleSystem.emission;
-            rainEmission.rateOverTime = initialRainEmissionRate * weatherIntensity;
+            rainEmission.rateOverTime = initialRainEmissionRate * rainIntensity;
 
             // Update max particles
             var rainMain = rainParticleSystem.main;
-            float particleMultiplier = 1 + ((maxParticleMultiplier - 1) * (weatherIntensity / 10f));
+            float particleMultiplier = 1 + ((maxParticleMultiplier - 1) * (rainIntensity / 10f));
             rainMain.maxParticles = Mathf.RoundToInt(initialRainMaxParticles * particleMultiplier);
         }
         // Update directional light - darker as intensity increases
@@ -56,14 +56,14 @@ public class WeatherController : MonoBehaviour
             // Calculate light intensity (inverse relationship with rain intensity)
             // When weatherIntensity = 0, light is at max; when weatherIntensity = 10, light is at min
             float lightIntensityRange = maxLightIntensity - minLightIntensity;
-            float normalizedWeatherIntensity = weatherIntensity / 10f;
+            float normalizedWeatherIntensity = rainIntensity / 10f;
             directionalLight.intensity = maxLightIntensity - (lightIntensityRange * normalizedWeatherIntensity);
         }
     }
 
-    public float GetWeatherIntensity()
+    public float GetRainIntensity()
     {
-        return weatherIntensity;
+        return rainIntensity;
     }
 
     private void Update()

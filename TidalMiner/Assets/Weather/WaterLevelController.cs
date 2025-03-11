@@ -59,7 +59,7 @@ public class WaterLevelController : MonoBehaviour
     {
         if (weatherController != null)
         {
-            float rainIntensity = weatherController.GetWeatherIntensity();
+            float rainIntensity = weatherController.GetRainIntensity();
 
             // Only start rising water when rain is significant
             if (rainIntensity > minRainIntensityForRising)
