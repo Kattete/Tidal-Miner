@@ -41,6 +41,21 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float crouchingHeight = 1f;
     [SerializeField] private float crouchTransitionSpeed = 10f;
 
+    [Header("Swimming Handling")]
+    [SerializeField] private WaterLevelController waterLevelController;
+    [SerializeField] private float swimSpeed = 3f; // Single swim speed for all directions
+    [SerializeField] private float swimUpSpeed = 3f; // Speed when pressing space underwater
+    [SerializeField] private float waterMovementSmoothing = 0.1f; // Lower = more responsive
+    [SerializeField] private float underwaterThreshold = 0.2f; // How deep before considered underwater
+
+    [Header("Underwater Effects")]
+    [SerializeField] private Color normalFogColor = new Color(0.5f, 0.5f, 0.5f, 1f);
+    [SerializeField] private Color underwaterFogColor = new Color(0.15f, 0.22f, 0.4f, 1f);
+    [SerializeField] private float underwaterFogDensity = 0.04f;
+    [SerializeField] private AudioSource underwaterAudioSource;
+    [SerializeField] private AudioSource swimmingAudioSource;
+    [SerializeField] private ParticleSystem bubbleEffect;
+
     // Component References
     private CharacterController controller;
     private Camera playerCamera;
@@ -62,6 +77,13 @@ public class PlayerMovement : MonoBehaviour
     private bool isOnSlope;
     private bool isSlidingDownSlope;
     private RaycastHit slopeHit;
+
+    // Swimming State Management
+    private bool isInWater = false;
+    private bool isUnderwater = false;
+    private bool wasUnderwater = false;
+    private float waterSurfaceHeight = 0f;
+    private float defaultFogDensity;
 
     // Input Values
     private Vector2 currentMovementInput;
@@ -104,6 +126,15 @@ public class PlayerMovement : MonoBehaviour
         // Initialize variables
         originalStepOffset = controller.stepOffset;
         targetHeight = standingHeight;
+
+        // Store default fog settings
+        defaultFogDensity = RenderSettings.fogDensity;
+
+        // Find water level controller if not assigned
+        if (waterLevelController == null)
+        {
+            waterLevelController = FindObjectOfType<WaterLevelController>();
+        }
     }
 
     private void OnEnable()
@@ -176,7 +207,8 @@ public class PlayerMovement : MonoBehaviour
 
     private void OnJump(InputAction.CallbackContext context)
     {
-        jumpPressed = context.performed;
+        // For continuous upward movement underwater
+        jumpPressed = context.ReadValueAsButton();
     }
 
     private void OnSprint(InputAction.CallbackContext context)
@@ -186,7 +218,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void OnCrouch(InputAction.CallbackContext context)
     {
-        if (context.performed)
+        if (context.performed && !isInWater) // Disable crouching while in water
         {
             crouchToggled = !crouchToggled;
             targetHeight = crouchToggled ? crouchingHeight : standingHeight;
@@ -199,13 +231,122 @@ public class PlayerMovement : MonoBehaviour
 
     private void Update()
     {
+        // Check if player is in water
+        CheckWaterState();
+
         ProcessInputs();
-        CheckGroundStatus();
-        HandleCrouching();
-        HandleMovement();
-        HandleGravity();
-        HandleJump();
+
+        if (isInWater)
+        {
+            HandleSwimming();
+        }
+        else
+        {
+            CheckGroundStatus();
+            HandleCrouching();
+            HandleMovement();
+            HandleGravity();
+            HandleJump();
+        }
+
         ApplyFinalMovement();
+        UpdateUnderwaterEffects();
+    }
+
+    private void CheckWaterState()
+    {
+        if (waterLevelController != null)
+        {
+            // Get current water height from the water level controller
+            waterSurfaceHeight = waterLevelController.GetCurrentWaterHeight();
+
+            // Player's position
+            float playerBottomHeight = transform.position.y;
+            float playerHeadHeight = transform.position.y + controller.height - controller.skinWidth;
+
+            // Check if player is touching water
+            bool wasTouchingWater = isInWater;
+            isInWater = playerBottomHeight <= waterSurfaceHeight;
+
+            // Check if player's head is underwater
+            wasUnderwater = isUnderwater;
+            isUnderwater = playerHeadHeight < (waterSurfaceHeight - underwaterThreshold);
+
+            // Trigger state change events
+            if (isInWater != wasTouchingWater)
+            {
+                if (isInWater)
+                    OnEnterWater();
+                else
+                    OnExitWater();
+            }
+
+            if (isUnderwater != wasUnderwater)
+            {
+                if (isUnderwater)
+                    OnSubmerge();
+                else
+                    OnSurface();
+            }
+        }
+    }
+
+    private void OnEnterWater()
+    {
+        // Reset crouching when entering water
+        if (crouchToggled)
+        {
+            crouchToggled = false;
+            targetHeight = standingHeight;
+            float cameraYOffset = 1.6f;
+            cameraHolder.localPosition = new Vector3(0, cameraYOffset, 0);
+        }
+
+        // Play water splash sound
+        if (swimmingAudioSource != null && !swimmingAudioSource.isPlaying)
+        {
+            swimmingAudioSource.pitch = Random.Range(0.8f, 1.2f);
+            swimmingAudioSource.Play();
+        }
+
+        // Reduce vertical velocity to prevent sinking too fast
+        velocity.y = Mathf.Max(velocity.y, -2f);
+    }
+
+    private void OnExitWater()
+    {
+        // Stop swimming sounds
+        if (swimmingAudioSource != null)
+            swimmingAudioSource.Stop();
+
+        if (underwaterAudioSource != null)
+            underwaterAudioSource.Stop();
+
+        // Stop bubble effects
+        if (bubbleEffect != null)
+            bubbleEffect.Stop();
+    }
+
+    private void OnSubmerge()
+    {
+        // Start underwater audio
+        if (underwaterAudioSource != null)
+            underwaterAudioSource.Play();
+
+        // Start bubble effect
+        if (bubbleEffect != null)
+            bubbleEffect.Play();
+    }
+
+    private void OnSurface()
+    {
+        // Stop underwater audio
+        if (underwaterAudioSource != null)
+            underwaterAudioSource.Stop();
+
+        // Stop bubble effect
+        if (bubbleEffect != null)
+            bubbleEffect.Stop();
     }
 
     private void ProcessInputs()
@@ -214,65 +355,137 @@ public class PlayerMovement : MonoBehaviour
         Vector3 forward = playerCamera.transform.forward;
         Vector3 right = playerCamera.transform.right;
 
-        // Project vectors onto the horizontal plane
-        forward.y = 0f;
-        right.y = 0f;
-        forward.Normalize();
-        right.Normalize();
+        // Project vectors onto the horizontal plane (only for land movement)
+        if (!isInWater)
+        {
+            forward.y = 0f;
+            right.y = 0f;
+            forward.Normalize();
+            right.Normalize();
+        }
 
         // Create the movement vector based on input system values
         moveDirection = (forward * currentMovementInput.y + right * currentMovementInput.x).normalized;
 
-        // Handle sprint state
-        if (sprintHeld && !crouchToggled && moveDirection.magnitude > 0.1f)
+        // Process different movement speeds based on state
+        if (isInWater)
         {
-            isSprinting = true;
-            targetSpeed = sprintSpeed;
-        }
-        else if (crouchToggled)
-        {
-            targetSpeed = crouchSpeed;
-            isSprinting = false;
+            // Single swimming speed - simplified
+            targetSpeed = swimSpeed;
         }
         else
         {
-            targetSpeed = walkSpeed;
-            isSprinting = false;
+            // Land movement speed logic
+            if (sprintHeld && !crouchToggled && moveDirection.magnitude > 0.1f)
+            {
+                isSprinting = true;
+                targetSpeed = sprintSpeed;
+            }
+            else if (crouchToggled)
+            {
+                targetSpeed = crouchSpeed;
+                isSprinting = false;
+            }
+            else
+            {
+                targetSpeed = walkSpeed;
+                isSprinting = false;
+            }
         }
 
         // Handle jump
-        if (jumpPressed && isGrounded && !crouchToggled)
+        if (jumpPressed)
         {
-            isJumping = true;
-            jumpPressed = false; // Reset jump flag to prevent multiple jumps
+            if (isInWater)
+            {
+                // In water, jump is used to swim up
+                // We don't need to set anything here as the swimming logic uses jumpPressed directly
+            }
+            else if (isGrounded && !crouchToggled)
+            {
+                // On land, normal jump
+                isJumping = true;
+            }
+
+            // Don't reset jumpPressed here as we want continuous upward movement while holding jump
+        }
+
+        // Handle dive (swim down) - divePressed is set directly from input events
+    }
+
+    private void HandleSwimming()
+    {
+        // Free underwater movement like flying
+        if (isInWater)
+        {
+            // Get camera forward and right for movement direction
+            Vector3 forward = playerCamera.transform.forward;
+            Vector3 right = playerCamera.transform.right;
+
+            // Calculate the base movement direction including vertical component from camera
+            Vector3 targetMoveDirection = (forward * currentMovementInput.y + right * currentMovementInput.x).normalized;
+
+            // Apply the horizontal and forward/backward movement
+            velocity = Vector3.Lerp(velocity, targetMoveDirection * swimSpeed, (1f / waterMovementSmoothing) * Time.deltaTime);
+
+            // Handle vertical movement separately
+            float verticalVelocity = 0f;
+
+            // Use jump to swim up
+            if (jumpPressed)
+            {
+                verticalVelocity = swimUpSpeed;
+            }
+            else
+            {
+                // If no vertical input, gradually slow down vertical movement
+                verticalVelocity = Mathf.Lerp(velocity.y, 0, Time.deltaTime * 5f);
+            }
+
+            // Apply vertical velocity
+            velocity.y = verticalVelocity;
+
+            // If at surface and jump is pressed with upward momentum, try to jump out of water
+            if (!isUnderwater && isJumping && velocity.y > 0)
+            {
+                velocity.y = jumpHeight * 1.5f; // Jump with extra force to exit water
+                isJumping = false;
+            }
         }
     }
 
     private void CheckGroundStatus()
     {
-        // Check if grounded based on the CharacterController
-        isGrounded = controller.isGrounded;
-
-        // Reset step offset if we're grounded
-        controller.stepOffset = isGrounded ? originalStepOffset : 0f;
-
-        // Check for slopes
-        if (isGrounded && Physics.Raycast(transform.position, Vector3.down, out slopeHit, controller.height / 2 + 0.3f, groundMask))
+        // Only check ground status when not in water
+        if (!isInWater)
         {
-            normalVector = slopeHit.normal;
-            isOnSlope = Vector3.Angle(normalVector, Vector3.up) > 0.1f && Vector3.Angle(normalVector, Vector3.up) <= maxSlopeAngle;
-            isSlidingDownSlope = Vector3.Angle(normalVector, Vector3.up) > maxSlopeAngle;
-        }
-        else
-        {
-            isOnSlope = false;
-            isSlidingDownSlope = false;
-            normalVector = Vector3.up;
+            // Check if grounded based on the CharacterController
+            isGrounded = controller.isGrounded;
+
+            // Reset step offset if we're grounded
+            controller.stepOffset = isGrounded ? originalStepOffset : 0f;
+
+            // Check for slopes
+            if (isGrounded && Physics.Raycast(transform.position, Vector3.down, out slopeHit, controller.height / 2 + 0.3f, groundMask))
+            {
+                normalVector = slopeHit.normal;
+                isOnSlope = Vector3.Angle(normalVector, Vector3.up) > 0.1f && Vector3.Angle(normalVector, Vector3.up) <= maxSlopeAngle;
+                isSlidingDownSlope = Vector3.Angle(normalVector, Vector3.up) > maxSlopeAngle;
+            }
+            else
+            {
+                isOnSlope = false;
+                isSlidingDownSlope = false;
+                normalVector = Vector3.up;
+            }
         }
     }
 
     private void HandleCrouching()
     {
+        // Don't handle crouching while in water
+        if (isInWater) return;
+
         // Update crouching state based on toggle
         isCrouching = crouchToggled;
 
@@ -290,6 +503,9 @@ public class PlayerMovement : MonoBehaviour
 
     private void HandleMovement()
     {
+        // Skip this method when in water
+        if (isInWater) return;
+
         // Smooth acceleration and deceleration
         float accelerationRate = isGrounded ? (moveDirection.magnitude > 0.1f ? accelerationTime : decelerationTime) : accelerationTime * airControlFactor;
         currentSpeed = Mathf.Lerp(currentSpeed, moveDirection.magnitude > 0.1f ? targetSpeed : 0f, (1f / accelerationRate) * Time.deltaTime);
@@ -338,6 +554,9 @@ public class PlayerMovement : MonoBehaviour
 
     private void HandleGravity()
     {
+        // Skip this method when in water
+        if (isInWater) return;
+
         // Apply gravity when not grounded
         if (!isGrounded)
         {
@@ -353,6 +572,9 @@ public class PlayerMovement : MonoBehaviour
 
     private void HandleJump()
     {
+        // Skip this method when in water
+        if (isInWater) return;
+
         if (isJumping && isGrounded)
         {
             // Calculate jump velocity using physics formula: v = sqrt(2 * g * h)
@@ -361,6 +583,24 @@ public class PlayerMovement : MonoBehaviour
 
             // Reset jumping flag
             isJumping = false;
+        }
+    }
+
+    private void UpdateUnderwaterEffects()
+    {
+        // Apply underwater post-processing effects
+        if (isUnderwater)
+        {
+            // Apply underwater fog
+            RenderSettings.fog = true;
+            RenderSettings.fogColor = underwaterFogColor;
+            RenderSettings.fogDensity = underwaterFogDensity;
+        }
+        else
+        {
+            // Restore normal fog settings
+            RenderSettings.fogColor = normalFogColor;
+            RenderSettings.fogDensity = defaultFogDensity;
         }
     }
 
@@ -392,6 +632,18 @@ public class PlayerMovement : MonoBehaviour
     // This method returns true if player is currently in the air
     public bool IsInAir()
     {
-        return !isGrounded;
+        return !isGrounded && !isInWater;
+    }
+
+    // This method returns true if player is currently in water
+    public bool IsInWater()
+    {
+        return isInWater;
+    }
+
+    // This method returns true if player is currently underwater
+    public bool IsUnderwater()
+    {
+        return isUnderwater;
     }
 }

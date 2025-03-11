@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: OceanWaterMaterial
-  m_Shader: {fileID: 4800000, guid: d0d5b0cd447b3e345b76dc4106de0041, type: 3}
+  m_Shader: {fileID: 4800000, guid: 933532a4fcc9baf4fa0491de14d08ed7, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -17,7 +17,8 @@ Material:
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: -1
-  stringTagMap: {}
+  stringTagMap:
+    RenderType: Opaque
   disabledShaderPasses:
   - MOTIONVECTORS
   m_LockedProperties: 
@@ -103,7 +104,7 @@ Material:
     - _DstBlend: 0
     - _DstBlendAlpha: 0
     - _EnvironmentReflections: 1
-    - _FlowSpeed: 1
+    - _FlowSpeed: 0.1
     - _Glitch: 0.1
     - _GlitchSpeed: 5
     - _GlossMapScale: 0
@@ -117,7 +118,7 @@ Material:
     - _QueueOffset: 0
     - _ReceiveShadows: 1
     - _RimPower: 3
-    - _RippleStrength: 0.5
+    - _RippleStrength: 0
     - _Smoothness: 0.5
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
@@ -126,14 +127,14 @@ Material:
     - _SrcBlendAlpha: 1
     - _Surface: 0
     - _Transparency: 0.7
-    - _WaveHeight: 0.3
+    - _WaveHeight: 0.01
     - _WaveScale: 1
     - _WaveSpeed: 0.3
     - _WorkflowMode: 1
     - _ZWrite: 1
     m_Colors:
-    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
-    - _Color: {r: 1, g: 1, b: 1, a: 1}
+    - _BaseColor: {r: 0.22957456, g: 0.696011, b: 0.7264151, a: 1}
+    - _Color: {r: 0.22957453, g: 0.696011, b: 0.7264151, a: 1}
     - _DeepColor: {r: 0, g: 0.19999996, b: 0.5, a: 0.9}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _RimColor: {r: 0, g: 0.7, b: 1, a: 1}
