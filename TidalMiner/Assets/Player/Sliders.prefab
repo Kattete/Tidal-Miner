@@ -198,7 +198,7 @@ GameObject:
   - component: {fileID: 2341513183371559909}
   - component: {fileID: -8432984645956904615}
   m_Layer: 0
-  m_Name: OxygenSlider
+  m_Name: Sliders
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

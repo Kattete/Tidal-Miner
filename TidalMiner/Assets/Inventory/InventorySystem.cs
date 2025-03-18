@@ -259,22 +259,30 @@ public class InventorySystem : MonoBehaviour
         {
             if (inventorySlots[i].isOccupied && inventorySlots[i].itemID == itemID)
             {
-                // Increase stack count
-                inventorySlots[i].quantity++;
+                // Get item component
+                CollectibleItem itemComponent = item.GetComponent<CollectibleItem>();
+                if (itemComponent == null) return false;
 
-                // Update quantity text
-                UpdateQuantityText(i);
-
-                // Disable colliders to prevent further interaction
-                DisableColliders(item);
-
-                // If it's not the map device, deactivate the original
-                if (item.GetComponent<MapDevice>() == null)
+                // Check if stack is full
+                if (inventorySlots[i].quantity < itemComponent.maxStackSize)
                 {
-                    item.SetActive(false);
-                }
+                    // Increase stack count
+                    inventorySlots[i].quantity++;
 
-                return true;
+                    // Update quantity text
+                    UpdateQuantityText(i);
+
+                    // Disable colliders to prevent further interaction
+                    DisableColliders(item);
+
+                    // If it's not the map device, deactivate the original
+                    if (item.GetComponent<MapDevice>() == null)
+                    {
+                        item.SetActive(false);
+                    }
+
+                    return true;
+                }
             }
         }
 
@@ -333,6 +341,64 @@ public class InventorySystem : MonoBehaviour
 
         // Inventory full
         return false;
+    }
+
+    // Item removal
+    public bool RemoveItem(string itemID, int quantity)
+    {
+        for (int i = 0; i < maxSlots; i++)
+        {
+            if (inventorySlots[i].isOccupied && inventorySlots[i].itemID == itemID)
+            {
+                // Check if there's enough quantity to remove
+                if (inventorySlots[i].quantity >= quantity)
+                {
+                    inventorySlots[i].quantity -= quantity;
+
+                    // If the quantity becomes zero, mark the slot as unoccupied
+                    if (inventorySlots[i].quantity == 0)
+                    {
+                        inventorySlots[i].isOccupied = false;
+                        inventorySlots[i].itemID = string.Empty;
+                    }
+
+                    return true; // Item removed successfully
+                }
+                else
+                {
+                    Debug.LogWarning("Not enough " + itemID + " in inventory.");
+                    return false; // Not enough quantity to remove
+                }
+            }
+        }
+
+        Debug.LogWarning(itemID + " not found in inventory.");
+        return false; // Item not found in inventory
+    }
+
+    // Get the inventory
+    public Dictionary<string, int> GetInventory()
+    {
+        Dictionary<string, int> inventoryData = new Dictionary<string, int>();
+
+        // Loop through each slot in the inventory
+        for (int i = 0; i < maxSlots; i++)
+        {
+            if (inventorySlots[i].isOccupied)
+            {
+                // Add itemID and quantity to the dictionary
+                if (inventoryData.ContainsKey(inventorySlots[i].itemID))
+                {
+                    inventoryData[inventorySlots[i].itemID] += inventorySlots[i].quantity;  // Stack items together
+                }
+                else
+                {
+                    inventoryData.Add(inventorySlots[i].itemID, inventorySlots[i].quantity);  // New item
+                }
+            }
+        }
+
+        return inventoryData;
     }
 
     // Get sprite mapping for an item ID
@@ -465,3 +531,4 @@ public class InventorySystem : MonoBehaviour
         return 0;
     }
 }
+
