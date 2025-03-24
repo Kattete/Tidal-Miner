@@ -415,7 +415,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   itemHolder: {fileID: 0}
-  scanRadius: 5
+  scanRadius: 9
   scanFrequency: 0.5
   hologramShowAngle: 30
   scannableLayer:

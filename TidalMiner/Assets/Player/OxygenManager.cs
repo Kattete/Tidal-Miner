@@ -42,7 +42,6 @@ public class OxygenManager : MonoBehaviour
         if (character == null) return;
         DrainOxygen();
         UpdateUI();
-        Debug.Log("Oxygen: " + currentOxygen);
     }
 
     private void DrainOxygen()

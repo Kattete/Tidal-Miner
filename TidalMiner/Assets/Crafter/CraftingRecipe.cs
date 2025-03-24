@@ -1,30 +1,17 @@
-using System.Collections.Generic;
 using UnityEngine;
 
-[System.Serializable]
-public class CraftingRecipe
+[CreateAssetMenu(fileName = "New Crafting Recipe", menuName = "Crafting/Recipe")]
+public class CraftingRecipe : ScriptableObject
 {
-    public string itemName; // The name of the crafted item
-    public Dictionary<string, int> requiredItems; // A dictionary of required materials and their amounts
-    public GameObject itemPrefab; // The prefab of the crafted item
+    public string recipeName;
+    public CollectibleItem craftedItem;  // The item this recipe produces
+    public float craftTime = 3f; // Time to craft
+    public ResourceRequirement[] requiredResources;
+}
 
-    // Constructor to initialize a CraftingRecipe
-    public CraftingRecipe(string name, Dictionary<string, int> required)
-    {
-        itemName = name;
-        requiredItems = required;
-    }
-
-    // Method to check if the player has enough materials for this recipe
-    public bool CanCraft(Dictionary<string, int> inventory)
-    {
-        foreach (var item in requiredItems)
-        {
-            if (!inventory.ContainsKey(item.Key) || inventory[item.Key] < item.Value)
-            {
-                return false; // Not enough of the required item
-            }
-        }
-        return true; // All required items are available
-    }
+[System.Serializable]
+public class ResourceRequirement
+{
+    public CollectibleItem resource;  // The Item required for crafting
+    public int amount;     // The amount of that resource needed
 }

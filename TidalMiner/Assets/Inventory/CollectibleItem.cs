@@ -7,12 +7,13 @@ public class CollectibleItem : MonoBehaviour
     [Header("Item Settings")]
     [SerializeField] public string itemName = "Item";
     [SerializeField] public string itemDescription = "A collectible item";
-    [SerializeField] public string itemID;
+    [SerializeField] public int itemID;
     [SerializeField] public bool isAutoCollect = false;
     [SerializeField] public float interactionDistance = 3f;
     [SerializeField] public Sprite itemIcon;
     [SerializeField] public int itemWeight = 1;
     [SerializeField] public int maxStackSize = 1;
+    [SerializeField] public GameObject itemPrefab;
 
     [Header("UI Prompt")]
     [SerializeField] private GameObject interactionPromptPrefab;
