@@ -45,7 +45,7 @@ public class Crafter : MonoBehaviour
     public GameObject recipeItemPrefab;
     public Transform recipeListParent;
 
-
+    // TODO Sounds and animations
 
     private void Awake()
     {
