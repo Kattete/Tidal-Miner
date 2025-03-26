@@ -84,7 +84,7 @@ public class MapDevice : MonoBehaviour
 
         StartCoroutine(InitializeComponents());
 
-        InventorySystem inventory = FindObjectOfType<InventorySystem>();
+        InventorySystem inventory = FindAnyObjectByType<InventorySystem>();
         if (inventory != null)
         {
             if(transform.parent == inventory.GetComponent<InventorySystem>().itemHoldPosition && inventory.currentActiveSlot == 0)

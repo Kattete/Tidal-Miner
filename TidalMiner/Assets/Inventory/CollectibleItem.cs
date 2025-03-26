@@ -5,11 +5,15 @@ using TMPro;
 public class CollectibleItem : MonoBehaviour
 {
     [Header("Item Settings")]
-    [SerializeField] private string itemName = "Item";
-    [SerializeField] private string itemDescription = "A collectible item";
-    [SerializeField] private string itemID;
-    [SerializeField] private bool isAutoCollect = false;
-    [SerializeField] private float interactionDistance = 3f;
+    [SerializeField] public string itemName = "Item";
+    [SerializeField] public string itemDescription = "A collectible item";
+    [SerializeField] public int itemID;
+    [SerializeField] public bool isAutoCollect = false;
+    [SerializeField] public float interactionDistance = 3f;
+    [SerializeField] public Sprite itemIcon;
+    [SerializeField] public int itemWeight = 1;
+    [SerializeField] public int maxStackSize = 1;
+    [SerializeField] public GameObject itemPrefab;
 
     [Header("UI Prompt")]
     [SerializeField] private GameObject interactionPromptPrefab;

@@ -273,6 +273,12 @@ public class PlayerMovement : MonoBehaviour
 
     private void HandleCrouching()
     {
+        // Check for obstacles above the player
+        if (!crouchToggled && Physics.Raycast(transform.position, Vector3.up, standingHeight - crouchingHeight + 0.1f, groundMask))
+        {
+            crouchToggled = true; // Force crouch if there's an obstacle above
+            targetHeight = crouchingHeight;
+        }
         // Update crouching state based on toggle
         isCrouching = crouchToggled;
 

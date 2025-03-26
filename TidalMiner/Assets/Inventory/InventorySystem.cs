@@ -3,13 +3,14 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using TMPro;
+using Unity.VisualScripting;
 
 public class InventorySystem : MonoBehaviour
 {
     [System.Serializable]
     public class InventorySlot
     {
-        public string itemID = "";
+        public int itemID;
         public GameObject itemInstance; // The actual equipped item
         public RectTransform slotTransform;
         public bool isOccupied;
@@ -21,7 +22,7 @@ public class InventorySystem : MonoBehaviour
     [System.Serializable]
     public class ItemSpriteMapping
     {
-        public string itemID;
+        public int itemID;
         public Sprite itemSprite; // 2D sprite for inventory display
         [Tooltip("Adjust the icon's size within the slot (0-1 for percentage of slot size)")]
         [Range(0.1f, 1.0f)]
@@ -68,7 +69,7 @@ public class InventorySystem : MonoBehaviour
         {
             inventorySlots[i] = new InventorySlot
             {
-                itemID = "",
+                itemID = 0,
                 itemInstance = null,
                 slotTransform = (i < slotTransforms.Length) ? slotTransforms[i] : null,
                 isOccupied = false,
@@ -119,7 +120,7 @@ public class InventorySystem : MonoBehaviour
         // Add map device to first slot
         if (mapDevicePrefab != null)
         {
-            AddItem(mapDevicePrefab, "MapDevice");
+            AddItem(mapDevicePrefab, 100);
         }
     }
 
@@ -250,31 +251,39 @@ public class InventorySystem : MonoBehaviour
     }
 
     // Method to add an item to inventory
-    public bool AddItem(GameObject item, string itemID)
+    public bool AddItem(GameObject item, int itemID)
     {
-        if (item == null || string.IsNullOrEmpty(itemID)) return false;
+        if (item == null) return false;
 
         // Check if we already have this stackable item
         for (int i = 0; i < maxSlots; i++)
         {
             if (inventorySlots[i].isOccupied && inventorySlots[i].itemID == itemID)
             {
-                // Increase stack count
-                inventorySlots[i].quantity++;
+                // Get item component
+                CollectibleItem itemComponent = item.GetComponent<CollectibleItem>();
+                if (itemComponent == null) return false;
 
-                // Update quantity text
-                UpdateQuantityText(i);
-
-                // Disable colliders to prevent further interaction
-                DisableColliders(item);
-
-                // If it's not the map device, deactivate the original
-                if (item.GetComponent<MapDevice>() == null)
+                // Check if stack is full
+                if (inventorySlots[i].quantity < itemComponent.maxStackSize)
                 {
-                    item.SetActive(false);
-                }
+                    // Increase stack count
+                    inventorySlots[i].quantity++;
 
-                return true;
+                    // Update quantity text
+                    UpdateQuantityText(i);
+
+                    // Disable colliders to prevent further interaction
+                    DisableColliders(item);
+
+                    // If it's not the map device, deactivate the original
+                    if (item.GetComponent<MapDevice>() == null)
+                    {
+                        item.SetActive(false);
+                    }
+
+                    return true;
+                }
             }
         }
 
@@ -335,8 +344,66 @@ public class InventorySystem : MonoBehaviour
         return false;
     }
 
+    // Item removal
+    public bool RemoveItem(int itemID, int quantity)
+    {
+        for (int i = 0; i < maxSlots; i++)
+        {
+            if (inventorySlots[i].isOccupied && inventorySlots[i].itemID == itemID)
+            {
+                // Check if there's enough quantity to remove
+                if (inventorySlots[i].quantity >= quantity)
+                {
+                    inventorySlots[i].quantity -= quantity;
+
+                    // If the quantity becomes zero, mark the slot as unoccupied
+                    if (inventorySlots[i].quantity == 0)
+                    {
+                        inventorySlots[i].isOccupied = false;
+                        inventorySlots[i].itemID = 0;
+                    }
+
+                    return true; // Item removed successfully
+                }
+                else
+                {
+                    Debug.LogWarning("Not enough " + itemID + " in inventory.");
+                    return false; // Not enough quantity to remove
+                }
+            }
+        }
+
+        Debug.LogWarning(itemID + " not found in inventory.");
+        return false; // Item not found in inventory
+    }
+
+    // Get the inventory
+    public Dictionary<int, int> GetInventory()
+    {
+        Dictionary<int, int> inventoryData = new Dictionary<int, int>();
+
+        // Loop through each slot in the inventory
+        for (int i = 0; i < maxSlots; i++)
+        {
+            if (inventorySlots[i].isOccupied)
+            {
+                // Add itemID and quantity to the dictionary
+                if (inventoryData.ContainsKey(inventorySlots[i].itemID))
+                {
+                    inventoryData[inventorySlots[i].itemID] += inventorySlots[i].quantity;  // Stack items together
+                }
+                else
+                {
+                    inventoryData.Add(inventorySlots[i].itemID, inventorySlots[i].quantity);  // New item
+                }
+            }
+        }
+
+        return inventoryData;
+    }
+
     // Get sprite mapping for an item ID
-    private ItemSpriteMapping GetSpriteMappingForItem(string itemID)
+    private ItemSpriteMapping GetSpriteMappingForItem(int itemID)
     {
         // Find the matching sprite mapping
         foreach (var mapping in itemSprites)
@@ -352,7 +419,7 @@ public class InventorySystem : MonoBehaviour
     }
 
     // Set sprite for an inventory slot
-    private void SetItemSprite(int slotIndex, string itemID)
+    private void SetItemSprite(int slotIndex, int itemID)
     {
         InventorySlot slot = inventorySlots[slotIndex];
         if (slot.slotTransform == null || slot.itemIcon == null) return;
@@ -433,26 +500,33 @@ public class InventorySystem : MonoBehaviour
         }
     }
 
-    // Check if we have a specific item ID in inventory
-    public bool HasItem(string itemID)
+    // Check if we have a specific item ID in inventory and its amount
+    public bool HasItem(int itemID, int requiredAmount)
     {
-        if (string.IsNullOrEmpty(itemID)) return false;
+        if (itemID == 0) return false;  // Prevent checking invalid items
+
+        int totalAmount = 0;  // Track how many of this item we have
 
         for (int i = 0; i < maxSlots; i++)
         {
             if (inventorySlots[i].isOccupied && inventorySlots[i].itemID == itemID)
             {
-                return true;
+                totalAmount += inventorySlots[i].quantity;  // Count item quantity
+
+                if (totalAmount >= requiredAmount)
+                {
+                    return true;  // We have enough, return early
+                }
             }
         }
 
-        return false;
+        return false;  // Not enough items found
     }
 
     // Get quantity of a specific item
-    public int GetItemQuantity(string itemID)
+    public int GetItemQuantity(int itemID)
     {
-        if (string.IsNullOrEmpty(itemID)) return 0;
+        if (itemID == 0) return 0;
 
         for (int i = 0; i < maxSlots; i++)
         {
@@ -464,4 +538,6 @@ public class InventorySystem : MonoBehaviour
 
         return 0;
     }
+
 }
+
